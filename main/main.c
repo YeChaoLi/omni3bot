@@ -31,7 +31,10 @@
 #define USE_REMOTE
 #define RED (1)
 #define BLACK (2)
+
+#define USE_OMNI3
 #define TARGET (BLACK)
+
 static const char *TAG = "O3";
 
 #ifdef USE_IMU
@@ -46,32 +49,32 @@ static void qmi8658c_task(void *pvParameters)
 
     qmi8658c_config_t config = {
         .mode = QMI8658C_MODE_DUAL,
-        .acc_scale = QMI8658C_ACC_SCALE_4G,
+        .acc_scale = QMI8658C_ACC_SCALE_8G,
         .acc_odr = QMI8658C_ACC_ODR_1000,
-        .gyro_scale = QMI8658C_GYRO_SCALE_64DPS,
-        .gyro_odr = QMI8658C_GYRO_ODR_8000,
+        .gyro_scale = QMI8658C_GYRO_SCALE_512DPS,
+        .gyro_odr = QMI8658C_GYRO_ODR_1000,
     };
 
     ESP_ERROR_CHECK(qmi8658c_setup(&dev, &config));
-
-    vTaskDelay(pdMS_TO_TICKS(100)); // Дать сенсору стартануть
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     while (1)
     {
         qmi8658c_data_t data;
         esp_err_t res = qmi8658c_read_data(&dev, &data);
+
         if (res == ESP_OK)
         {
-            ESP_LOGI(TAG, "Acc: x=%.3f y=%.3f z=%.3f | Gyro: x=%.3f y=%.3f z=%.3f | Temp: %.2f",
-                     data.acc.x, data.acc.y, data.acc.z,
-                     data.gyro.x, data.gyro.y, data.gyro.z,
-                     data.temperature);
+            // ESP_LOGI(TAG, "Acc: x=%.3f y=%.3f z=%.3f | Gyro: x=%.3f y=%.3f z=%.3f | Temp: %.2f",
+            //          data.acc.x, data.acc.y, data.acc.z,
+            //          data.gyro.x, data.gyro.y, data.gyro.z,
+            //          data.temperature);
         }
         else
         {
             ESP_LOGE(TAG, "Sensor read error: %s", esp_err_to_name(res));
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 }
 
@@ -574,6 +577,7 @@ static void motorC_set(float throttle)
 #endif
 }
 
+#if USE_OMNI3
 static void mixer_task(void *pvParameters)
 {
     pwm1_init();
@@ -587,11 +591,11 @@ static void mixer_task(void *pvParameters)
     motorA_set(0.5);
     motorB_set(0.5);
     motorC_set(0.5);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(30));
     motorA_set(-0.5);
     motorB_set(-0.5);
     motorC_set(-0.5);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(30));
     motorA_set(0);
     motorB_set(0);
     motorC_set(0);
@@ -603,10 +607,15 @@ static void mixer_task(void *pvParameters)
     }
 }
 
+#else
+
+
+#endif
+
 void app_main(void)
 {
     // xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
-    // xTaskCreate(qmi8658c_task, "qmi8658c_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(qmi8658c_task, "qmi8658c_task", 1 * 4096, NULL, 1, NULL);
     xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
     // xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
     xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
