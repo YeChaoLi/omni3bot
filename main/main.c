@@ -5,11 +5,10 @@
  */
 
 // --- Configuration Constants ---
-// You may need to adjust these values
-#define JOYSTICK_MAX_RAW_VALUE 15.0f // Use 15.0f to get a max value of 1.0
+#define JOYSTICK_MAX_RAW_VALUE 17.0f // The max absolute value from your joystick (e.g., 'ef' is -17)
 #define JOYSTICK_DEADZONE 3          // Raw joystick values from -3 to 3 will be ignored
-#define ANGLE_DECREMENT_C 15.0f      // Amount to decrease angle with button C
-#define ANGLE_INCREMENT_D 15.0f      // Amount to increase angle with button D
+#define ANGLE_DECREMENT_C 15.0f      // Amount to decrease anglular velocity by when C button is pressed
+#define ANGLE_INCREMENT_D 15.0f      // Amount to increase anglular velocity by when D button is pressed
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,8 +62,7 @@ typedef struct
     float theta; // Vehicle Rotation Left/Right (-1.0 to 1.0)
 } motion_command_t;
 
-// A global variable to store the current state of the controller.
-// Your main vehicle control loop can read from this variable.
+// A global variable to store the current motion vector of the controller.
 motion_command_t current_motion = {0.0f, 0.0f, 0.0f};
 
 void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length);
@@ -136,11 +134,10 @@ void hidh_callback(void *handler_args, esp_event_base_t base, int32_t id, void *
 
     case ESP_HIDH_INPUT_EVENT:
     {
-        // Call our new function to parse the data
+        // parse data from controller input
         parse_and_map_hid_report(param->input.report_id, param->input.data, param->input.length);
 
-        // Log the final, mapped values for debugging.
-        // This shows you the data that's ready for your mixer.
+        // print to monitor
         ESP_LOGI("MIXER_INPUT", "x: %.2f, y: %.2f, theta: %.2f", current_motion.x, current_motion.y, current_motion.theta);
         break;
     }
@@ -258,7 +255,7 @@ void ble_store_config_init(void);
 #endif
 
 /**
- * @brief Parses raw HID reports and maps them to vehicle motion commands.
+ * @brief Parses raw HID reports from controller and maps them to vehicle motion commands.
  *
  * @param report_id The ID of the incoming HID report.
  * @param data A pointer to the raw data buffer.
@@ -266,10 +263,10 @@ void ble_store_config_init(void);
  */
 void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length)
 {
-    // NEW: Static variable to track button state to register only one event per press.
+    // NEW: Static variable to track button state (for C and D)
     static bool button_already_processed = false;
 
-    // --- Report ID 2 is for the Joystick (Mouse movement) ---
+    // ---Joystick Movement ---
     if (report_id == 2 && length >= 3)
     {
         // The remote sends joystick data as signed 8-bit integers.
@@ -288,10 +285,9 @@ void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length
 
         // === Sideways Orientation Mapping ===
         // We map the physical axes to the vehicle's logical axes.
-        // Physical "Up" (positive Y) becomes vehicle "Forward" (positive X).
+        // Physical "Up" (positive Y) becomes vehicle "Forward" (positive X value).
         // Physical "Right" (positive X) becomes vehicle "Strafe Right" (positive Y).
         // We normalize the raw value to a float between -1.0 and 1.0.
-        // NOTE: This mapping is the one that was working in your previous log output.
         current_motion.x = (float)raw_phys_y / JOYSTICK_MAX_RAW_VALUE;
         current_motion.y = (float)raw_phys_x / JOYSTICK_MAX_RAW_VALUE;
 
@@ -306,7 +302,7 @@ void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length
             current_motion.y = -1.0f;
     }
 
-    // --- Report ID 3 is for the Buttons (Consumer Control) ---
+    // --- Report ID 3 is for the C and D buttons ---
     if (report_id == 3 && length >= 1)
     {
         uint8_t button_code = data[0];
@@ -342,7 +338,7 @@ void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length
             button_already_processed = false;
             break;
         default:
-            // Handle other buttons (A, B) here if needed
+            // Handle other buttons (A, B) here if needed later
             break;
         }
     }
