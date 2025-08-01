@@ -1,0 +1,4 @@
+# Ignore the build output directory
+/build
+sdkconfig*
+!sdkconfig.default

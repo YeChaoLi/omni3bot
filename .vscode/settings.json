@@ -15,5 +15,6 @@
     "qmi8658c.h": "c",
     "freertos.h": "c"
   },
-  "idf.port": "/dev/ttyACM0"
+  "idf.port": "/dev/ttyACM0",
+  "idf.adapterTargetName": "esp32s3"
 }
