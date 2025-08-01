@@ -39,7 +39,7 @@ static const char *TAG = "O3";
 
 #ifdef USE_IMU
 
-static void qmi8658c_task(void *pvParameters)
+static void sensor_task(void *pvParameters)
 {
     i2c_dev_t dev = {0};
 
@@ -577,7 +577,37 @@ static void motorC_set(float throttle)
 #endif
 }
 
-#if USE_OMNI3
+// Motion control for a abstract vehicle robot
+// input/read:
+// mode: TPS or FPS
+// output/write:
+// TPS: target linear speed (x, y), target angular speed (θ')
+// FPS: target linear speed (x), target angular speed (θ') on body frame
+staic void motion_task(void *pvParameters)
+{
+    while (1)
+    {
+        if (mode == TPS)
+        {
+            /* code */
+        }
+        else
+        {
+            /* code */
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+#ifdef USE_OMNI3
+// An omni3 mixer (120 degrees apart in 3 directions)
+// input/read:
+// mode: TPS(world frame to body frame to wheel frame) or FPS(only body frame to wheel frame)
+// target linear speed (x, y), target angular speed (θ'),
+// current linear speed (x, y), current angular speed (θ'), current yaw (θ)
+// output/write:
+// motor A speed(actually throttle because no encoder feedback), motor B speed, motor C speed
 static void mixer_task(void *pvParameters)
 {
     pwm1_init();
@@ -603,20 +633,37 @@ static void mixer_task(void *pvParameters)
     while (1)
     {
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
+
 
 #else
 
 
 #endif
 
+// some exception like picked up, battery low, just set a error flag
+static void monitor_task(void *pvParameters)
+{
+    while (1)
+    {
+        // if (pitch > 30 || roll > 30)
+        // {
+        //     ESP_LOGI(TAG, "Picked up!");
+        //     pickup = true;
+        // }
+        
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+}
+
 void app_main(void)
 {
     // xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
-    xTaskCreate(qmi8658c_task, "qmi8658c_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(sensor_task, "sensor_task", 1 * 4096, NULL, 1, NULL);
     xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
-    // xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
     xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
 }
