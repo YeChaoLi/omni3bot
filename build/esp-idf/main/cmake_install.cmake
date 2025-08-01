@@ -1,4 +1,4 @@
-# Install script for directory: /home/chao/Workspace/Hackathon/omni3/main
+# Install script for directory: /home/chao/Workspace/Hackathon/omni3bot/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

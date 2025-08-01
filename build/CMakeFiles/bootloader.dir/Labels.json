@@ -2,34 +2,34 @@
 	"sources" : 
 	[
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/CMakeFiles/bootloader"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/CMakeFiles/bootloader"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/CMakeFiles/bootloader.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/CMakeFiles/bootloader.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/CMakeFiles/bootloader-complete.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/CMakeFiles/bootloader-complete.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
 		},
 		{
-			"file" : "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
+			"file" : "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
 		}
 	],
 	"target" : 

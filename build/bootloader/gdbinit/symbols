@@ -17,4 +17,4 @@ set confirm off
 set confirm on
 
 # Load application symbols
-file /home/chao/Workspace/Hackathon/omni3/build/bootloader/bootloader.elf
+file /home/chao/Workspace/Hackathon/omni3bot/build/bootloader/bootloader.elf

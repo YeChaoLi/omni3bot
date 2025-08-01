@@ -13,8 +13,8 @@ end
 
 # Load bootloader symbols
 set confirm off
-    add-symbol-file /home/chao/Workspace/Hackathon/omni3/build/bootloader/bootloader.elf
+    add-symbol-file /home/chao/Workspace/Hackathon/omni3bot/build/bootloader/bootloader.elf
 set confirm on
 
 # Load application symbols
-file /home/chao/Workspace/Hackathon/omni3/build/omni3bot.elf
+file /home/chao/Workspace/Hackathon/omni3bot/build/omni3bot.elf

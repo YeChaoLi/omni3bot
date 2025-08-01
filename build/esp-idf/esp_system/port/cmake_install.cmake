@@ -39,6 +39,6 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/chao/Workspace/Hackathon/omni3/build/esp-idf/esp_system/port/soc/esp32s3/cmake_install.cmake")
+  include("/home/chao/Workspace/Hackathon/omni3bot/build/esp-idf/esp_system/port/soc/esp32s3/cmake_install.cmake")
 endif()
 

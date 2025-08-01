@@ -1,0 +1,30 @@
+Command: /home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python /home/chao/esp/master/esp-idf/tools/idf_monitor.py -p /dev/ttyACM0 -b 115200 --toolchain-prefix xtensa-esp32s3-elf- --target esp32s3 --revision 0 /home/chao/Workspace/Hackathon/omni3bot/build/omni3bot.elf /home/chao/Workspace/Hackathon/omni3bot/build/bootloader/bootloader.elf -m '/home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python' '/home/chao/esp/master/esp-idf/tools/idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40041a79
+waiting for download
+[0;32mI (1299) O3: LED ON![0m
+[0;32mI (1305) O3: duty 3 =  0.080000[0m
+[0;32mI (2301) O3: LED OFF![0m
+[0;32mI (2305) O3: duty 3 =  0.080000[0m
+[0;32mI (3303) O3: LED ON![0m
+[0;32mI (3305) O3: duty 3 =  0.080000[0m
+[0;32mI (4305) O3: LED OFF![0m
+[0;32mI (4305) O3: duty 3 =  0.080000[0m
+[0;32mI (5305) O3: duty 3 =  0.080000[0m
+[0;32mI (5307) O3: LED ON![0m
+[0;32mI (6305) O3: duty 3 =  0.080000[0m
+[0;32mI (6309) O3: LED OFF![0m
+[0;32mI (7305) O3: duty 3 =  0.080000[0m
+[0;32mI (7311) O3: LED ON![0m
+[0;32mI (8305) O3: duty 3 =  0.080000[0m
+[0;32mI (8313) O3: LED OFF![0m
+[0;32mI (9305) O3: duty 3 =  0.080000[0m
+[0;32mI (9315) O3: LED ON![0m
+[0;32mI (10305) O3: duty 3 =  0.080000[0m
+[0;32mI (10317) O3: LED OFF![0m
+[0;32mI (11305) O3: duty 3 =  0.080000[0m
+[0;32mI (11319) O3: LED ON![0m
+[0;32mI (12305) O3: duty 3 =  0.080000[0m
+[0;32mI (12321) O3: LED OFF![0m

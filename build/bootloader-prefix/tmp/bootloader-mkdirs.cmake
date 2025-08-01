@@ -5,18 +5,18 @@ cmake_minimum_required(VERSION 3.5)
 
 file(MAKE_DIRECTORY
   "/home/chao/esp/master/esp-idf/components/bootloader/subproject"
-  "/home/chao/Workspace/Hackathon/omni3/build/bootloader"
-  "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix"
-  "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/tmp"
-  "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp"
-  "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src"
-  "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp"
+  "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader"
+  "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix"
+  "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/tmp"
+  "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp"
+  "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src"
+  "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
+    file(MAKE_DIRECTORY "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "/home/chao/Workspace/Hackathon/omni3/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "/home/chao/Workspace/Hackathon/omni3bot/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
 endif()

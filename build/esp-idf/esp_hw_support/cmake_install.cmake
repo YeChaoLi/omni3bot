@@ -39,16 +39,16 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/chao/Workspace/Hackathon/omni3/build/esp-idf/esp_hw_support/port/esp32s3/cmake_install.cmake")
+  include("/home/chao/Workspace/Hackathon/omni3bot/build/esp-idf/esp_hw_support/port/esp32s3/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/chao/Workspace/Hackathon/omni3/build/esp-idf/esp_hw_support/mspi_timing_tuning/port/esp32s3/cmake_install.cmake")
+  include("/home/chao/Workspace/Hackathon/omni3bot/build/esp-idf/esp_hw_support/mspi_timing_tuning/port/esp32s3/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/chao/Workspace/Hackathon/omni3/build/esp-idf/esp_hw_support/lowpower/cmake_install.cmake")
+  include("/home/chao/Workspace/Hackathon/omni3bot/build/esp-idf/esp_hw_support/lowpower/cmake_install.cmake")
 endif()
 

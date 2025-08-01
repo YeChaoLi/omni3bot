@@ -3,4 +3,4 @@ source "/home/chao/esp/master/esp-idf/components/esp_app_format/Kconfig.projbuil
 source "/home/chao/esp/master/esp-idf/components/esp_rom/Kconfig.projbuild"
 source "/home/chao/esp/master/esp-idf/components/esptool_py/Kconfig.projbuild"
 source "/home/chao/esp/master/esp-idf/components/partition_table/Kconfig.projbuild"
-source "/home/chao/Workspace/Hackathon/omni3/main/Kconfig.projbuild"
+source "/home/chao/Workspace/Hackathon/omni3bot/main/Kconfig.projbuild"

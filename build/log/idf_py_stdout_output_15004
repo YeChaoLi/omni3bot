@@ -1,0 +1,84 @@
+Command: ninja flash
+[1/5] cd /home/chao/Workspace/Hackathon/omni3bot/build && /home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python /home/chao/esp/master/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /home/chao/Workspace/Hackathon/omni3bot/build/partition_table/partition-table.bin /home/chao/Workspace/Hackathon/omni3bot/build/omni3bot.bin
+omni3bot.bin binary size 0x3b680 bytes. Smallest app partition is 0x177000 bytes. 0x13b980 bytes (84%) free.
+[2/5] Performing build step for 'bootloader'
+[1/1] cd /home/chao/Workspace/Hackathon/omni3bot/build/bootloader && /home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python /home/chao/esp/master/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /home/chao/Workspace/Hackathon/omni3bot/build/bootloader/bootloader.bin
+Bootloader binary size 0x5250 bytes. 0x2db0 bytes (36%) free.
+[3/5] No install step for 'bootloader'
+[4/5] Completed 'bootloader'
+[4/5] Running utility command for flash
+esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 2MB 0x0 bootloader/bootloader.bin 0x8000 partition_table/partition-table.bin 0x10000 omni3bot.bin
+esptool.py v4.9.1
+Serial port /dev/ttyACM0
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded Flash 4MB (XMC), Embedded PSRAM 2MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 94:a9:90:39:2b:dc
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+Flash will be erased from 0x00010000 to 0x0004bfff...
+SHA digest in image updated
+Compressed 21072 bytes to 13459...
+Writing at 0x00000000... (100 %)
+Wrote 21072 bytes (13459 compressed) at 0x00000000 in 0.4 seconds (effective 473.8 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 105...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (105 compressed) at 0x00008000 in 0.1 seconds (effective 487.0 kbit/s)...
+Hash of data verified.
+Compressed 243328 bytes to 131100...
+Writing at 0x00010000... (11 %)
+Writing at 0x0001c218... (22 %)
+Writing at 0x00023ed4... (33 %)
+Writing at 0x0002a756... (44 %)
+Writing at 0x0003093d... (55 %)
+Writing at 0x00038967... (66 %)
+Writing at 0x0003e8cb... (77 %)
+Writing at 0x00044b56... (88 %)
+Writing at 0x0004b66c... (100 %)
+
+Lost connection, retrying...
+Waiting for the chip to reconnect
+Connecting...
+Uploading stub...
+Running stub...
+Stub running...
+Compressed 243328 bytes to 131100...
+Writing at 0x00010000... (11 %)
+Writing at 0x0001c218... (22 %)
+Writing at 0x00023ed4... (33 %)
+Traceback (most recent call last):
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/__init__.py", line 1365, in _main
+    main()
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/__init__.py", line 1069, in main
+    operation_func(esp, args)
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/cmds.py", line 667, in write_flash
+    esp.flash_defl_block(block, seq, timeout=timeout)
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/loader.py", line 127, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/loader.py", line 1314, in flash_defl_block
+    self.check_command(
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/loader.py", line 546, in check_command
+    val, data = self.command(op, data, chk, timeout=timeout)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/loader.py", line 476, in command
+    p = self.read()
+        ^^^^^^^^^^^
+  File "/home/chao/.espressif/python_env/idf6.0_py3.12_env/lib/python3.12/site-packages/esptool/loader.py", line 409, in read
+    return next(self._slip_reader)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+A fatal error occurred: The chip stopped responding.
+FAILED: CMakeFiles/flash.util 
+cd /home/chao/Workspace/Hackathon/omni3bot && /usr/bin/cmake -D IDF_PATH=/home/chao/esp/master/esp-idf -D "SERIAL_TOOL=/home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python;;/home/chao/esp/master/esp-idf/components/esptool_py/esptool/esptool.py;--chip;esp32s3" -D "SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args" -D WORKING_DIRECTORY=/home/chao/Workspace/Hackathon/omni3bot/build -P /home/chao/esp/master/esp-idf/components/esptool_py/run_serial_tool.cmake
+ninja: build stopped: subcommand failed.

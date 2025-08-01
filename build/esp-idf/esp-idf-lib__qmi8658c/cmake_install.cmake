@@ -1,4 +1,4 @@
-# Install script for directory: /home/chao/Workspace/Hackathon/omni3/managed_components/esp-idf-lib__qmi8658c
+# Install script for directory: /home/chao/Workspace/Hackathon/omni3bot/managed_components/esp-idf-lib__qmi8658c
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

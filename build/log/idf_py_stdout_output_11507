@@ -1,0 +1,17 @@
+Command: ninja flash
+[1/10] Performing build step for 'bootloader'
+[1/1] cd /home/chao/Workspace/Hackathon/omni3bot/build/bootloader && /home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python /home/chao/esp/master/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /home/chao/Workspace/Hackathon/omni3bot/build/bootloader/bootloader.bin
+Bootloader binary size 0x5250 bytes. 0x2db0 bytes (36%) free.
+[2/10] No install step for 'bootloader'
+[3/10] Completed 'bootloader'
+[4/10] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj
+/home/chao/Workspace/Hackathon/omni3bot/main/main.c:451:13: warning: 'motion_task' defined but not used [-Wunused-function]
+  451 | static void motion_task(void *pvParameters)
+      |             ^~~~~~~~~~~
+/home/chao/Workspace/Hackathon/omni3bot/main/main.c:312:13: warning: 'remote_task' defined but not used [-Wunused-function]
+  312 | static void remote_task(void *pvParameters)
+      |             ^~~~~~~~~~~
+/home/chao/Workspace/Hackathon/omni3bot/main/main.c:37:13: warning: 'qmi8658c_task' defined but not used [-Wunused-function]
+   37 | static void qmi8658c_task(void *pvParameters)
+      |             ^~~~~~~~~~~~~
+[5/10] Linking C static library esp-idf/main/libmain.a

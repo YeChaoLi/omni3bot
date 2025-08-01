@@ -1,0 +1,67 @@
+Command: /home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python /home/chao/esp/master/esp-idf/tools/idf_monitor.py -p /dev/ttyACM0 -b 115200 --toolchain-prefix xtensa-esp32s3-elf- --target esp32s3 --revision 0 /home/chao/Workspace/Hackathon/omni3bot/build/omni3bot.elf /home/chao/Workspace/Hackathon/omni3bot/build/bootloader/bootloader.elf -m '/home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python' '/home/chao/esp/master/esp-idf/tools/idf.py'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x8 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037892e
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1598
+load:0x403c8700,len:0xd20
+load:0x403cb700,len:0x2f40
+entry 0x403c8924
+[0;32mI (24) boot: ESP-IDF v6.0-dev-1362-g346870a304 2nd stage bootloader[0m
+[0;32mI (25) boot: compile time Aug  1 2025 18:46:57[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (26) boot: chip revision: v0.2[0m
+[0;32mI (29) boot: efuse block revision: v1.3[0m
+[0;32mI (33) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (37) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (40) boot.esp32s3: SPI Flash Size : 2MB[0m
+[0;32mI (44) boot: Enabling RNG early entropy source...[0m
+[0;32mI (49) boot: Partition Table:[0m
+[0;32mI (51) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (64) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (71) boot:  2 factory          factory app      00 00 00010000 00177000[0m
+[0;32mI (77) boot: End of partition table[0m
+[0;32mI (80) esp_image: segment 0: paddr=00010020 vaddr=3c020020 size=0c00ch ( 49164) map[0m
+[0;32mI (96) esp_image: segment 1: paddr=0001c034 vaddr=3fc94400 size=02f54h ( 12116) load[0m
+[0;32mI (99) esp_image: segment 2: paddr=0001ef90 vaddr=40374000 size=01088h (  4232) load[0m
+[0;32mI (104) esp_image: segment 3: paddr=00020020 vaddr=42000020 size=1c354h (115540) map[0m
+[0;32mI (131) esp_image: segment 4: paddr=0003c37c vaddr=40375088 size=0f2a4h ( 62116) load[0m
+[0;32mI (144) esp_image: segment 5: paddr=0004b628 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (152) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (152) boot: Disabling RNG early entropy source...[0m
+[0;32mI (162) cpu_start: Multicore app[0m
+[0;32mI (171) cpu_start: Pro cpu start user code[0m
+[0;32mI (171) cpu_start: cpu freq: 240000000 Hz[0m
+[0;32mI (171) app_init: Application information:[0m
+[0;32mI (172) app_init: Project name:     omni3bot[0m
+[0;32mI (175) app_init: App version:      dbf37f2-dirty[0m
+[0;32mI (180) app_init: Compile time:     Aug  1 2025 18:46:48[0m
+[0;32mI (185) app_init: ELF file SHA256:  c173f642e...[0m
+[0;32mI (189) app_init: ESP-IDF:          v6.0-dev-1362-g346870a304[0m
+[0;32mI (195) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (198) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (202) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (206) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (213) heap_init: At 3FC97C58 len 00051AB8 (326 KiB): RAM[0m
+[0;32mI (218) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (223) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (228) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (234) spi_flash: detected chip: generic[0m
+[0;32mI (237) spi_flash: flash io: dio[0m
+[0;33mW (240) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (252) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (259) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (265) coexist: coex firmware version: 831ec70[0m
+[0;32mI (269) coexist: coexist rom version e7ae62f[0m
+[0;32mI (274) main_task: Started on CPU0[0m
+[0;32mI (277) main_task: Calling app_main()[0m
+[0;32mI (281) O3: Created LED strip object with RMT backend[0m
+[0;32mI (285) O3: Start blinking LED strip[0m
+[0;32mI (288) main_task: Returned from app_main()[0m
+[0;32mI (290) O3: LED OFF![0m
+[0;32mI (289) O3: duty 1 =  0.075000[0m
+[0;32mI (297) O3: duty 2 =  0.075000[0m
+[0;32mI (300) O3: duty 3 =  0.075000[0m
