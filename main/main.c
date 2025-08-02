@@ -35,7 +35,7 @@
 #define BLACK (2)
 
 #define USE_OMNI3
-#define TARGET (BLACK)
+#define TARGET (RED)
 
 static const char *TAG = "O3";
 
@@ -47,9 +47,42 @@ enum Mode
 
 struct Status
 {
+    // Position data
+    struct
+    {
+        float x, y, roll, pitch, yaw;
+    } target_position;
+
+    struct
+    {
+        float x, y, roll, pitch, yaw;
+    } current_position;
+
+    // Speed data
+    struct
+    {
+        float x, y, v, roll, pitch, yaw;
+    } target_speed;
+
+    struct
+    {
+        float x, y, v, roll, pitch, yaw;
+    } current_speed;
+
+    struct
+    {
+        float x, y, v, yaw;
+    } set_speed;
+
+    // Remote control data
+    struct
+    {
+        float x, y, theta;
+        bool button_a, button_b, button_c, button_d;
+    } remote;
 
     enum Mode mode;
-    
+
 } status;
 
 #ifdef USE_IMU
@@ -57,6 +90,10 @@ struct Status
 static void sensor_task(void *pvParameters)
 {
     i2c_dev_t dev = {0};
+    esp_err_t res;
+    qmi8658c_data_t data;
+    float gyro_offset[3] = {0};
+    float gyro_scale[3] = {};
 
     ESP_ERROR_CHECK(i2cdev_init());
 
@@ -65,31 +102,60 @@ static void sensor_task(void *pvParameters)
     qmi8658c_config_t config = {
         .mode = QMI8658C_MODE_DUAL,
         .acc_scale = QMI8658C_ACC_SCALE_8G,
-        .acc_odr = QMI8658C_ACC_ODR_1000,
         .gyro_scale = QMI8658C_GYRO_SCALE_512DPS,
-        .gyro_odr = QMI8658C_GYRO_ODR_1000,
+        .acc_odr = QMI8658C_ACC_ODR_2000,
+        .gyro_odr = QMI8658C_GYRO_ODR_2000,
     };
 
     ESP_ERROR_CHECK(qmi8658c_setup(&dev, &config));
-    vTaskDelay(pdMS_TO_TICKS(100));
+
+    static uint32_t count = 0;
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 50; // ms
+    xLastWakeTime = xTaskGetTickCount();
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+    res = qmi8658c_read_data(&dev, &data);
+    gyro_offset[0] = -data.gyro.x;
+    gyro_offset[1] = data.gyro.y;
+    gyro_offset[2] = -data.gyro.z;
+    gyro_scale[0] = 1.0;
+    gyro_scale[1] = 1.0;
+    gyro_scale[2] = 1.0;
 
     while (1)
     {
-        qmi8658c_data_t data;
-        esp_err_t res = qmi8658c_read_data(&dev, &data);
+        res = qmi8658c_read_data(&dev, &data);
 
         if (res == ESP_OK)
         {
-            // ESP_LOGI(TAG, "Acc: x=%.3f y=%.3f z=%.3f | Gyro: x=%.3f y=%.3f z=%.3f | Temp: %.2f",
-            //          data.acc.x, data.acc.y, data.acc.z,
-            //          data.gyro.x, data.gyro.y, data.gyro.z,
-            //          data.temperature);
+            // left hand coordinate and right hand rotation direction
+            status.current_speed.pitch = ((-data.gyro.x)-gyro_offset[0])*gyro_scale[0];
+            status.current_speed.roll = ((data.gyro.y)-gyro_offset[1])*gyro_scale[1];
+            status.current_speed.yaw = ((-data.gyro.z)-gyro_offset[2])*gyro_scale[2];
+
+            // interger only
+            status.current_position.pitch += (status.current_speed.pitch * 0.05);
+            status.current_position.roll += (status.current_speed.roll * 0.05);
+            status.current_position.yaw += (status.current_speed.yaw * 0.05);
         }
         else
         {
             ESP_LOGE(TAG, "Sensor read error: %s", esp_err_to_name(res));
         }
-        vTaskDelay(pdMS_TO_TICKS(1));
+
+        if (count++ > 10-1)
+        {
+            count = 0;
+
+            ESP_LOGI(TAG, "Acc: x=%.3f y=%.3f z=%.3f | Gyro: x=%.3f y=%.3f z=%.3f | Temp: %.2f",
+                     data.acc.x, data.acc.y, data.acc.z,
+                     data.gyro.x, data.gyro.y, data.gyro.z,
+                     data.temperature);
+            ESP_LOGI(TAG, "Yaw: %.3f", status.current_position.yaw);
+        }
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
@@ -209,11 +275,20 @@ static void remote_task(void *pvParameters)
 // TPS: target linear speed (x, y), target angular speed (θ')
 static void motion_task(void *pvParameters)
 {
+    status.mode = MODE_FPS;
+
     while (1)
     {
         if (status.mode == MODE_FPS)
         {
-            /* code */
+            status.target_speed.v = 0.5;
+            status.target_speed.yaw = 0;
+
+            status.set_speed.v = 0.3;
+            status.set_speed.yaw = 0.01;
+
+            ESP_LOGI(TAG, "status.set_speed.v: %f", status.set_speed.v);
+            ESP_LOGI(TAG, "status.set_speed.yaw: %f", status.set_speed.yaw);
         }
         else
         {
@@ -316,28 +391,28 @@ static void pwm3_set(float percent)
 
 static void motor_setA(float throttle)
 {
-#if (TARGET == 1)
-    pwm1_set(throttle);
-#else
+#if (TARGET == RED)
     pwm1_set(-throttle);
+#else
+    pwm1_set(throttle);
 #endif
 }
 
 static void motor_setB(float throttle)
 {
-#if (TARGET == 1)
-    pwm2_set(-throttle);
+#if (TARGET == RED)
+    pwm2_set(throttle);
 #else
-    pwm3_set(throttle);
+    pwm3_set(-throttle);
 #endif
 }
 
 static void motor_setC(float throttle)
 {
-#if (TARGET == 1)
-    pwm3_set(throttle);
+#if (TARGET == RED)
+    pwm3_set(-throttle);
 #else
-    pwm2_set(-throttle);
+    pwm2_set(throttle);
 #endif
 }
 
@@ -346,21 +421,28 @@ static void motor_setC(float throttle)
 #define L 50 // mm
 
 // Wheel “angles” βi (location) relative to robot-forward (0 rad):
-//   A at +60°, B at –60°, C at 180°.
-#define BETA_A (M_PI / 3.0f)
-#define BETA_B (-M_PI / 3.0f)
+//   A at -60°, B at 60°, C at 180°.
+#define BETA_A (-M_PI / 3.0f)
+#define BETA_B (M_PI / 3.0f)
 #define BETA_C (M_PI)
 
-void omni_drive_fps(float v, float omega)
+void omni_drive_fps(float v, float rate_yaw)
 {
-    // PROJECT body motion into each wheel’s drive direction.
-    // For an omniwheel at βi, its drive axis is tangent at αi = βi + 90°.
-    // Wheel speed =  (–sin αi)*v  +  ω * L
-    //   = (–sin(βi + π/2))*v  +  ω * L
-    //   = (–cos βi)*v         +  ω * L
-    float mA = (-cosf(BETA_A)) * v + omega * L;
-    float mB = (-cosf(BETA_B)) * v + omega * L;
-    float mC = (-cosf(BETA_C)) * v + omega * L;
+    // PROJECT body motion into each wheel's drive direction.
+    // v is forward velocity in body frame (x-axis)
+    // rate_yaw is angular velocity around z-axis
+    
+    // Project (v, 0) + rate_yaw*L into each wheel's tangent axis:
+    // For forward motion: v in x-direction of body frame
+    // For yaw motion: rate_yaw * L contributes to each wheel
+    // Wheel tangent vectors: ti = [ -sin βi,  cos βi ]
+    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f + rate_yaw * L/1000;
+    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f + rate_yaw * L/1000;
+    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f + rate_yaw * L/1000;
+
+    ESP_LOGI(TAG, "mA: %f", mA);
+    ESP_LOGI(TAG, "mB: %f", mB);
+    ESP_LOGI(TAG, "mC: %f", mC);
 
     // Normalize if any |m| exceeds 1.0
     float maxm = fmaxf(fabsf(mA), fmaxf(fabsf(mB), fabsf(mC)));
@@ -372,9 +454,9 @@ void omni_drive_fps(float v, float omega)
     }
 
     // Finally, send to your motor driver (throttle in [–1…1])
-    motor_setA(mA);
-    motor_setB(mB);
-    motor_setC(mC);
+    // motor_setA(mA);
+    // motor_setB(mB);
+    // motor_setC(mC);
 }
 
 void omni_drive_tps(float rate_x, float rate_y, float omega, float yaw)
@@ -424,14 +506,17 @@ static void mixer_task(void *pvParameters)
     pwm3_set(0);
     vTaskDelay(pdMS_TO_TICKS(500));
 
+    // motor_setC(0.5);
+    // vTaskDelay(pdMS_TO_TICKS(5000000));
+
     motor_setA(0.5);
     motor_setB(0.5);
     motor_setC(0.5);
-    vTaskDelay(pdMS_TO_TICKS(30));
+    vTaskDelay(pdMS_TO_TICKS(200));
     motor_setA(-0.5);
     motor_setB(-0.5);
     motor_setC(-0.5);
-    vTaskDelay(pdMS_TO_TICKS(30));
+    vTaskDelay(pdMS_TO_TICKS(100));
     motor_setA(0);
     motor_setB(0);
     motor_setC(0);
@@ -440,11 +525,11 @@ static void mixer_task(void *pvParameters)
     {
         if (status.mode == MODE_FPS)
         {
-            // omni_drive_fps(speed.v, speed.yaw);
+            omni_drive_fps(status.set_speed.v, status.set_speed.yaw);
         }
         else
         {
-            // omni_drive_tps(speed.x, speed.y, speed.yaw, position.yaw);
+            // omni_drive_tps(status.target_speed.x, status.target_speed.y, status.target_speed.yaw, status.target_position.yaw);
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -473,9 +558,9 @@ static void monitor_task(void *pvParameters)
 void app_main(void)
 {
     // xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
-    xTaskCreate(sensor_task, "sensor_task", 1 * 4096, NULL, 1, NULL);
-    xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
+    // xTaskCreate(sensor_task, "sensor_task", 2 * 4096, NULL, 1, NULL);
+    // xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
     xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
     xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
-    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
+    // xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
 }

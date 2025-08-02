@@ -80,7 +80,7 @@ static esp_err_t send_command(i2c_dev_t *dev, uint8_t reg, uint8_t value)
     return ESP_OK;
 }
 
-#define REPLY_DELAY_MS 25
+#define REPLY_DELAY_MS 3
 
 static esp_err_t read_register(i2c_dev_t *dev, uint8_t reg, uint8_t *value)
 {
