@@ -312,21 +312,54 @@ static void pixel_task(void *pvParameters)
 #include "esp_hidh.h"
 #include "esp_hid_gap.h"
 
-typedef struct
+// typedef struct
+// {
+//     float x;     // Vehicle Forward/Backward motion (-1.0 to 1.0)
+//     float y;     // Vehicle Strafe Left/Right motion (-1.0 to 1.0)
+//     float theta; // Vehicle Rotation counter and clockwise (-180 to 180)
+// } motion_command_t;
+
+// // A global variable to store the current motion vector of the controller.
+// motion_command_t current_motion = {0.0f, 0.0f, 0.0f};
+
+void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length)
 {
-    float x;     // Vehicle Forward/Backward motion (-1.0 to 1.0)
-    float y;     // Vehicle Strafe Left/Right motion (-1.0 to 1.0)
-    float theta; // Vehicle Rotation counter and clockwise (-180 to 180)
-} motion_command_t;
+    // ---Joystick Movement (Report ID 2) ---
+    if (report_id == 2 && length >= 3)
+    {
+        // The remote sends joystick data as signed 8-bit integers.
+        int8_t raw_phys_y = (int8_t)data[1]; // Physical Up/Down axis
+        int8_t raw_phys_x = (int8_t)data[2]; // Physical Left/Right axis
 
-// A global variable to store the current motion vector of the controller.
-motion_command_t current_motion = {0.0f, 0.0f, 0.0f};
+        // Apply Deadzone
+        if (abs(raw_phys_y) < JOYSTICK_DEADZONE)
+        {
+            raw_phys_y = 0;
+        }
+        if (abs(raw_phys_x) < JOYSTICK_DEADZONE)
+        {
+            raw_phys_x = 0;
+        }
 
-void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length);
+        // --- New Mapping ---
+        // Physical Up/Down (Y-axis) controls forward/backward speed (status.remote.x)
+        // Physical Left/Right (X-axis) controls spin speed (status.remote.y)
 
-#if CONFIG_BT_HID_HOST_ENABLED
-static const char *remote_device_name = CONFIG_EXAMPLE_PEER_DEVICE_NAME;
-#endif // CONFIG_BT_HID_HOST_ENABLED
+        // Normalize the raw values to a float between -1.0 and 1.0.
+        status.remote.x = (float)raw_phys_y / JOYSTICK_MAX_RAW_VALUE;
+        status.remote.y = (float)raw_phys_x / JOYSTICK_MAX_RAW_VALUE;
+
+        // Clamp values to ensure they are within [-1.0, 1.0]
+        if (status.remote.x > 1.0f)
+            status.remote.x = 1.0f;
+        if (status.remote.x < -1.0f)
+            status.remote.x = -1.0f;
+        if (status.remote.y > 1.0f)
+            status.remote.y = 1.0f;
+        if (status.remote.y < -1.0f)
+            status.remote.y = -1.0f;
+    }
+}
 
 #if !CONFIG_BT_NIMBLE_ENABLED
 static char *bda2str(uint8_t *bda, char *str, size_t size)
@@ -392,8 +425,6 @@ void hidh_callback(void *handler_args, esp_event_base_t base, int32_t id, void *
         // parse data from controller input
         parse_and_map_hid_report(param->input.report_id, param->input.data, param->input.length);
 
-        // print to monitor
-        ESP_LOGI("MIXER_INPUT", "x: %.2f, y: %.2f, theta: %.2f", current_motion.x, current_motion.y, current_motion.theta);
         break;
     }
 
@@ -509,96 +540,6 @@ void ble_hid_host_task(void *param)
 void ble_store_config_init(void);
 #endif
 
-/**
- * @brief Parses raw HID reports from controller and maps them to vehicle motion commands.
- *
- * @param report_id The ID of the incoming HID report.
- * @param data A pointer to the raw data buffer.
- * @param length The length of the data buffer.
- */
-void parse_and_map_hid_report(uint8_t report_id, const uint8_t *data, int length)
-{
-    // NEW: Static variable to track button state (for C and D)
-    static bool button_already_processed = false;
-
-    // ---Joystick Movement ---
-    if (report_id == 2 && length >= 3)
-    {
-        // The remote sends joystick data as signed 8-bit integers.
-        int8_t raw_phys_y = (int8_t)data[1]; // Physical Up/Down axis
-        int8_t raw_phys_x = (int8_t)data[2]; // Physical Left/Right axis
-
-        // Apply Deadzone
-        if (abs(raw_phys_y) < JOYSTICK_DEADZONE)
-        {
-            raw_phys_y = 0;
-        }
-        if (abs(raw_phys_x) < JOYSTICK_DEADZONE)
-        {
-            raw_phys_x = 0;
-        }
-
-        // === Sideways Orientation Mapping ===
-        // We map the physical axes to the vehicle's logical axes.
-        // Physical "Up" (positive Y) becomes vehicle "Forward" (positive X value).
-        // Physical "Right" (positive X) becomes vehicle "Strafe Right" (positive Y).
-        // We normalize the raw value to a float between -1.0 and 1.0.
-        current_motion.x = (float)raw_phys_y / JOYSTICK_MAX_RAW_VALUE;
-        current_motion.y = (float)raw_phys_x / JOYSTICK_MAX_RAW_VALUE;
-
-        // Clamp values to ensure they are within [-1.0, 1.0]
-        if (current_motion.x > 1.0f)
-            current_motion.x = 1.0f;
-        if (current_motion.x < -1.0f)
-            current_motion.x = -1.0f;
-        if (current_motion.y > 1.0f)
-            current_motion.y = 1.0f;
-        if (current_motion.y < -1.0f)
-            current_motion.y = -1.0f;
-    }
-
-    // --- Report ID 3 is for the C and D buttons ---
-    if (report_id == 3 && length >= 1)
-    {
-        uint8_t button_code = data[0];
-
-        switch (button_code)
-        {
-        case 0xe9: // Button C (leftmost) - Decrease Angle
-            if (!button_already_processed)
-            {
-                current_motion.theta -= ANGLE_DECREMENT_C;
-                // Wrap angle if it goes below -180
-                if (current_motion.theta < -180.0f)
-                {
-                    current_motion.theta += 360.0f;
-                }
-                button_already_processed = true;
-            }
-            break;
-        case 0xea: // Button D (rightmost) - Increase Angle
-            if (!button_already_processed)
-            {
-                current_motion.theta += ANGLE_INCREMENT_D;
-                // Wrap angle if it goes above 180
-                if (current_motion.theta > 180.0f)
-                {
-                    current_motion.theta -= 360.0f;
-                }
-                button_already_processed = true;
-            }
-            break;
-        case 0x00: // All buttons released
-            // Reset the flag so the next press can be registered.
-            button_already_processed = false;
-            break;
-        default:
-            // Handle other buttons (A, B) here if needed later
-            break;
-        }
-    }
-}
-
 static void remote_task(void *pvParameters)
 {
     esp_err_t ret;
@@ -688,24 +629,24 @@ static void motion_task(void *pvParameters)
     {
         if (status.mode == MODE_FPS)
         {
-            status.set_speed.v = 0;
-            status.set_speed.yaw = 0;
-            
-            if (status.remote.x != 0)
-            {
-                /* code */
-            }
-            
-            status.target_speed.v = 0.8;
-            status.target_speed.yaw = 0.6;
+            // --- New Control Logic ---
+            status.target_speed.v = status.remote.x * 0.70;
+            status.target_speed.yaw = status.remote.y * 0.70;
 
-            // status.set_speed.v = 0.8;
-            // status.set_speed.yaw = 0.7;
+            ESP_LOGI(TAG, "target speed: %f", status.target_speed.v);
+            ESP_LOGI(TAG, "target yaw: %f", status.target_speed.yaw);
+
+            // Set the final speed for the mixer task
             status.set_speed.v = status.target_speed.v;
             status.set_speed.yaw = status.target_speed.yaw;
 
-            ESP_LOGI(TAG, "status.set_speed.v: %f", status.set_speed.v);
-            ESP_LOGI(TAG, "status.set_speed.yaw: %f", status.set_speed.yaw);
+            // ADD THIS "IF" STATEMENT
+            if (status.set_speed.v != 0.0f || status.set_speed.yaw != 0.0f)
+            {
+
+                // ESP_LOGI(TAG, "status.set_speed.v: %f", status.set_speed.v);
+                // ESP_LOGI(TAG, "status.set_speed.yaw: %f", status.set_speed.yaw);
+            }
         }
         else
         {
@@ -782,7 +723,7 @@ static void pwm1_set(float percent)
 {
     // map duty from -1.0~1.0 to 0.05~0.1. 0.15 is the middle.
     float duty = 0.05 + (percent + 1.0) * 0.025;
-    ESP_LOGI(TAG, "duty 1 =  %f", duty);
+    // ESP_LOGI(TAG, "duty 1 =  %f", duty);
 
     ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty * 8192));
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
@@ -791,7 +732,7 @@ static void pwm1_set(float percent)
 static void pwm2_set(float percent)
 {
     float duty = 0.05 + (percent + 1.0) * 0.025;
-    ESP_LOGI(TAG, "duty 2 =  %f", duty);
+    // ESP_LOGI(TAG, "duty 2 =  %f", duty);
 
     ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, duty * 8192));
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1));
@@ -800,7 +741,7 @@ static void pwm2_set(float percent)
 static void pwm3_set(float percent)
 {
     float duty = 0.05 + (percent + 1.0) * 0.025;
-    ESP_LOGI(TAG, "duty 3 =  %f", duty);
+    // ESP_LOGI(TAG, "duty 3 =  %f", duty);
 
     ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, duty * 8192));
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2));
@@ -864,11 +805,12 @@ void omni_drive_fps(float v, float rate_yaw)
     // Normalize if any |m| exceeds 1.0
     float maxm = fmaxf(fabsf(mA), fmaxf(fabsf(mB), fabsf(mC)));
     if (maxm > 1.0f)
-    {
-        mA /= maxm;
-        mB /= maxm;
-        mC /= maxm;
-    }
+        ‘
+        {
+            mA /= maxm;
+            mB /= maxm;
+            mC /= maxm;
+        }
 
     // Finally, send to your motor driver (throttle in [–1…1])
     motor_setA(mA);
