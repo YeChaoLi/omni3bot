@@ -334,9 +334,78 @@ staic void motion_task(void *pvParameters)
 }
 
 #ifdef USE_OMNI3
-// An omni3 mixer (120 degrees apart in 3 directions)
+
+#include <math.h>
+#include <float.h>
+
+// Geometry constant: robot radius (wheel distance to center) scaled
+// so that ω_max * L ≈ 1.0.  You must tune this for your chassis.
+#define L 50 // mm
+
+// Wheel “angles” βi (location) relative to robot-forward (0 rad):
+//   A at +60°, B at –60°, C at 180°.
+#define BETA_A (M_PI / 3.0f)
+#define BETA_B (-M_PI / 3.0f)
+#define BETA_C (M_PI)
+
+void omni_drive_fps(float v, float omega)
+{
+    // PROJECT body motion into each wheel’s drive direction.
+    // For an omniwheel at βi, its drive axis is tangent at αi = βi + 90°.
+    // Wheel speed =  (–sin αi)*v  +  ω * L
+    //   = (–sin(βi + π/2))*v  +  ω * L
+    //   = (–cos βi)*v         +  ω * L
+    float mA = (-cosf(BETA_A)) * v + omega * L;
+    float mB = (-cosf(BETA_B)) * v + omega * L;
+    float mC = (-cosf(BETA_C)) * v + omega * L;
+
+    // Normalize if any |m| exceeds 1.0
+    float maxm = fmaxf(fabsf(mA), fmaxf(fabsf(mB), fabsf(mC)));
+    if (maxm > 1.0f)
+    {
+        mA /= maxm;
+        mB /= maxm;
+        mC /= maxm;
+    }
+
+    // Finally, send to your motor driver (throttle in [–1…1])
+    motor_setA(mA);
+    motor_setB(mB);
+    motor_setC(mC);
+}
+
+void omni_drive_tps(float rate_x, float rate_y, float omega)
+{
+    // 1) Rotate world→body:
+    //    [vxb]   [ cos yaw   sin yaw ] [rate_x]
+    //    [vyb] = [ -sin yaw  cos yaw ] [rate_y]
+    float vxb = rate_x * cosf(yaw) + rate_y * sinf(yaw);
+    float vyb = -rate_x * sinf(yaw) + rate_y * cosf(yaw);
+
+    // 2) Project (vxb, vyb) + ω·L into each wheel’s tangent axis:
+    //    ti = [ -sin βi,  cos βi ]
+    float mA = -sinf(BETA_A) * vxb + cosf(BETA_A) * vyb + omega * L;
+    float mB = -sinf(BETA_B) * vxb + cosf(BETA_B) * vyb + omega * L;
+    float mC = -sinf(BETA_C) * vxb + cosf(BETA_C) * vyb + omega * L;
+
+    // 3) Normalize if any |m| > 1 so we stay in the [–1…+1] throttle range
+    float maxm = fmaxf(fabsf(mA), fmaxf(fabsf(mB), fabsf(mC)));
+    if (maxm > 1.0f)
+    {
+        mA /= maxm;
+        mB /= maxm;
+        mC /= maxm;
+    }
+
+    // 4) Send to your motor drivers:
+    motor_setA(mA);
+    motor_setB(mB);
+    motor_setC(mC);
+}
+
+// An omni3 mixer (120 degrees apart in 3 directions) we don’t have any torque control or speed feedback, so just control speed with pwm pulse width
 // input/read:
-// mode: FPS(only body frame to wheel frame) 
+// mode: FPS(only body frame to wheel frame)
 // mode: TPS(world frame to body frame to wheel frame)
 // target linear speed (x, y), target angular speed (θ'),
 // current linear speed (x, y), current angular speed (θ'), current yaw (θ)
@@ -350,7 +419,7 @@ static void mixer_task(void *pvParameters)
     pwm2_set(0);
     pwm3_init();
     pwm3_set(0);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(500));
 
     motorA_set(0.5);
     motorB_set(0.5);
@@ -368,13 +437,13 @@ static void mixer_task(void *pvParameters)
     {
         if (mode == FPS)
         {
-            /* code */
+            omni_drive_fps(speed.v, speed.yaw);
         }
         else
         {
-            /* code */
+            omni_drive_tps(speed.x, speed.y, speed.yaw, position.yaw);
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
