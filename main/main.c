@@ -276,16 +276,25 @@ static void remote_task(void *pvParameters)
 static void motion_task(void *pvParameters)
 {
     status.mode = MODE_FPS;
+    vTaskDelay(pdMS_TO_TICKS(2000));
 
     while (1)
     {
         if (status.mode == MODE_FPS)
         {
-            status.target_speed.v = 0.5;
+            status.set_speed.v = 0;
+            status.set_speed.yaw = 0;
+            
+            if (status.remote.x != 0)
+            {
+                /* code */
+            }
+            
+            status.target_speed.v = 0;
             status.target_speed.yaw = 0;
 
-            status.set_speed.v = 0.3;
-            status.set_speed.yaw = 0.01;
+            // status.set_speed.v = 0.8;
+            // status.set_speed.yaw = 0.7;
 
             ESP_LOGI(TAG, "status.set_speed.v: %f", status.set_speed.v);
             ESP_LOGI(TAG, "status.set_speed.yaw: %f", status.set_speed.yaw);
@@ -436,9 +445,9 @@ void omni_drive_fps(float v, float rate_yaw)
     // For forward motion: v in x-direction of body frame
     // For yaw motion: rate_yaw * L contributes to each wheel
     // Wheel tangent vectors: ti = [ -sin βi,  cos βi ]
-    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f + rate_yaw * L/1000;
-    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f + rate_yaw * L/1000;
-    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f + rate_yaw * L/1000;
+    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f + rate_yaw * L/100;
+    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f + rate_yaw * L/100;
+    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f + rate_yaw * L/100;
 
     ESP_LOGI(TAG, "mA: %f", mA);
     ESP_LOGI(TAG, "mB: %f", mB);
@@ -454,9 +463,9 @@ void omni_drive_fps(float v, float rate_yaw)
     }
 
     // Finally, send to your motor driver (throttle in [–1…1])
-    // motor_setA(mA);
-    // motor_setB(mB);
-    // motor_setC(mC);
+    motor_setA(mA);
+    motor_setB(mB);
+    motor_setC(mC);
 }
 
 void omni_drive_tps(float rate_x, float rate_y, float omega, float yaw)
@@ -483,9 +492,9 @@ void omni_drive_tps(float rate_x, float rate_y, float omega, float yaw)
     }
 
     // 4) Send to your motor drivers:
-    motor_setA(mA);
-    motor_setB(mB);
-    motor_setC(mC);
+    // motor_setA(mA);
+    // motor_setB(mB);
+    // motor_setC(mC);
 }
 
 // An omni3 mixer (120 degrees apart in 3 directions) we don’t have any torque control or speed feedback, so just control speed with pwm pulse width
@@ -512,7 +521,7 @@ static void mixer_task(void *pvParameters)
     motor_setA(0.5);
     motor_setB(0.5);
     motor_setC(0.5);
-    vTaskDelay(pdMS_TO_TICKS(200));
+    vTaskDelay(pdMS_TO_TICKS(150));
     motor_setA(-0.5);
     motor_setB(-0.5);
     motor_setC(-0.5);
