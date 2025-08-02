@@ -701,6 +701,8 @@ static void motion_task(void *pvParameters)
 
             // status.set_speed.v = 0.8;
             // status.set_speed.yaw = 0.7;
+            status.set_speed.v = status.target_speed.v;
+            status.set_speed.yaw = status.target_speed.yaw;
 
             ESP_LOGI(TAG, "status.set_speed.v: %f", status.set_speed.v);
             ESP_LOGI(TAG, "status.set_speed.yaw: %f", status.set_speed.yaw);
