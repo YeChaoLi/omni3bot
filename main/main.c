@@ -130,9 +130,9 @@ static void sensor_task(void *pvParameters)
         if (res == ESP_OK)
         {
             // left hand coordinate and right hand rotation direction
-            status.current_speed.pitch = ((-data.gyro.x)-gyro_offset[0])*gyro_scale[0];
-            status.current_speed.roll = ((data.gyro.y)-gyro_offset[1])*gyro_scale[1];
-            status.current_speed.yaw = ((-data.gyro.z)-gyro_offset[2])*gyro_scale[2];
+            status.current_speed.pitch = ((-data.gyro.x) - gyro_offset[0]) * gyro_scale[0];
+            status.current_speed.roll = ((data.gyro.y) - gyro_offset[1]) * gyro_scale[1];
+            status.current_speed.yaw = ((-data.gyro.z) - gyro_offset[2]) * gyro_scale[2];
 
             // interger only
             status.current_position.pitch += (status.current_speed.pitch * 0.05);
@@ -144,7 +144,7 @@ static void sensor_task(void *pvParameters)
             ESP_LOGE(TAG, "Sensor read error: %s", esp_err_to_name(res));
         }
 
-        if (count++ > 10-1)
+        if (count++ > 10 - 1)
         {
             count = 0;
 
@@ -613,7 +613,6 @@ static void remote_task(void *pvParameters)
 
 #endif
 
-
 // Motion control for a abstract vehicle robot
 // input/read:
 // mode: FPS or TPS
@@ -631,7 +630,7 @@ static void motion_task(void *pvParameters)
         {
             // --- New Control Logic ---
             status.target_speed.v = status.remote.x * 0.70;
-            status.target_speed.yaw = status.remote.y * 0.70;
+            status.target_speed.yaw = -status.remote.y * 0.60;
 
             ESP_LOGI(TAG, "target speed: %f", status.target_speed.v);
             ESP_LOGI(TAG, "target yaw: %f", status.target_speed.yaw);
@@ -789,28 +788,27 @@ void omni_drive_fps(float v, float rate_yaw)
     // PROJECT body motion into each wheel's drive direction.
     // v is forward velocity in body frame (x-axis)
     // rate_yaw is angular velocity around z-axis
-    
+
     // Project (v, 0) + rate_yaw*L into each wheel's tangent axis:
     // For forward motion: v in x-direction of body frame
     // For yaw motion: rate_yaw * L contributes to each wheel
     // Wheel tangent vectors: ti = [ -sin βi,  cos βi ]
-    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f - rate_yaw * L/100;
-    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f - rate_yaw * L/100;
-    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f - rate_yaw * L/100;
+    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f - rate_yaw * L / 100;
+    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f - rate_yaw * L / 100;
+    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f - rate_yaw * L / 100;
 
-    ESP_LOGI(TAG, "mA: %f", mA);
-    ESP_LOGI(TAG, "mB: %f", mB);
-    ESP_LOGI(TAG, "mC: %f", mC);
+    // ESP_LOGI(TAG, "mA: %f", mA);
+    // ESP_LOGI(TAG, "mB: %f", mB);
+    // ESP_LOGI(TAG, "mC: %f", mC);
 
     // Normalize if any |m| exceeds 1.0
     float maxm = fmaxf(fabsf(mA), fmaxf(fabsf(mB), fabsf(mC)));
     if (maxm > 1.0f)
-        ‘
-        {
-            mA /= maxm;
-            mB /= maxm;
-            mC /= maxm;
-        }
+    {
+        mA /= maxm;
+        mB /= maxm;
+        mC /= maxm;
+    }
 
     // Finally, send to your motor driver (throttle in [–1…1])
     motor_setA(mA);
@@ -871,11 +869,11 @@ static void mixer_task(void *pvParameters)
     motor_setA(0.5);
     motor_setB(0.5);
     motor_setC(0.5);
-    vTaskDelay(pdMS_TO_TICKS(150));
+    vTaskDelay(pdMS_TO_TICKS(100));
     motor_setA(-0.5);
     motor_setB(-0.5);
     motor_setC(-0.5);
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(120));
     motor_setA(0);
     motor_setB(0);
     motor_setC(0);
