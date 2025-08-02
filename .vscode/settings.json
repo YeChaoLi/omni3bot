@@ -13,7 +13,8 @@
   "files.associations": {
     "esp_bt.h": "c",
     "qmi8658c.h": "c",
-    "freertos.h": "c"
+    "freertos.h": "c",
+    "math.h": "c"
   },
   "idf.port": "/dev/ttyACM0"
 }

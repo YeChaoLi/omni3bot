@@ -1,0 +1,2 @@
+/home/chao/.espressif/tools/xtensa-esp-elf/esp-15.1.0_20250607/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ar qc libesp-idf-lib__qmi8658c.a "CMakeFiles/__idf_esp-idf-lib__qmi8658c.dir/qmi8658c.c.obj"
+/home/chao/.espressif/tools/xtensa-esp-elf/esp-15.1.0_20250607/xtensa-esp-elf/bin/xtensa-esp32s3-elf-ranlib libesp-idf-lib__qmi8658c.a

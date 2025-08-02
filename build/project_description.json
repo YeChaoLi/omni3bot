@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "omni3bot",
-    "project_version":    "dbf37f2-dirty",
+    "project_version":    "fe24c71-dirty",
     "project_path":       "/home/chao/Workspace/Hackathon/omni3bot",
     "idf_path":           "/home/chao/esp/master/esp-idf",
     "build_dir":          "/home/chao/Workspace/Hackathon/omni3bot/build",

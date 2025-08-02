@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "esp-idf/esp-idf-lib__i2cdev",
+		"source" : "managed_components/esp-idf-lib__i2cdev"
+	}
+}

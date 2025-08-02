@@ -25,6 +25,8 @@
 #include "nvs_flash.h"
 #include "esp_bt.h"
 #include "driver/ledc.h"
+#include <math.h>
+#include <float.h>
 
 #define USE_IMU
 #define USE_RGB
@@ -36,6 +38,19 @@
 #define TARGET (BLACK)
 
 static const char *TAG = "O3";
+
+enum Mode
+{
+    MODE_FPS = 0,
+    MODE_TPS,
+};
+
+struct Status
+{
+
+    enum Mode mode;
+    
+} status;
 
 #ifdef USE_IMU
 
@@ -186,14 +201,30 @@ static void remote_task(void *pvParameters)
 
 #endif
 
+// Motion control for a abstract vehicle robot
+// input/read:
+// mode: FPS or TPS
+// output/write:
+// FPS: target linear speed (x), target angular speed (θ') on body frame
+// TPS: target linear speed (x, y), target angular speed (θ')
 static void motion_task(void *pvParameters)
 {
     while (1)
     {
+        if (status.mode == MODE_FPS)
+        {
+            /* code */
+        }
+        else
+        {
+            /* code */
+        }
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
+
+#ifdef USE_OMNI3
 
 static void pwm1_init(void)
 {
@@ -283,7 +314,7 @@ static void pwm3_set(float percent)
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2));
 }
 
-static void motorA_set(float throttle)
+static void motor_setA(float throttle)
 {
 #if (TARGET == 1)
     pwm1_set(throttle);
@@ -292,7 +323,7 @@ static void motorA_set(float throttle)
 #endif
 }
 
-static void motorB_set(float throttle)
+static void motor_setB(float throttle)
 {
 #if (TARGET == 1)
     pwm2_set(-throttle);
@@ -301,7 +332,7 @@ static void motorB_set(float throttle)
 #endif
 }
 
-static void motorC_set(float throttle)
+static void motor_setC(float throttle)
 {
 #if (TARGET == 1)
     pwm3_set(throttle);
@@ -309,34 +340,6 @@ static void motorC_set(float throttle)
     pwm2_set(-throttle);
 #endif
 }
-
-// Motion control for a abstract vehicle robot
-// input/read:
-// mode: FPS or TPS
-// output/write:
-// FPS: target linear speed (x), target angular speed (θ') on body frame
-// TPS: target linear speed (x, y), target angular speed (θ')
-staic void motion_task(void *pvParameters)
-{
-    while (1)
-    {
-        if (mode == FPS)
-        {
-            /* code */
-        }
-        else
-        {
-            /* code */
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
-
-#ifdef USE_OMNI3
-
-#include <math.h>
-#include <float.h>
 
 // Geometry constant: robot radius (wheel distance to center) scaled
 // so that ω_max * L ≈ 1.0.  You must tune this for your chassis.
@@ -421,27 +424,27 @@ static void mixer_task(void *pvParameters)
     pwm3_set(0);
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    motorA_set(0.5);
-    motorB_set(0.5);
-    motorC_set(0.5);
+    motor_setA(0.5);
+    motor_setB(0.5);
+    motor_setC(0.5);
     vTaskDelay(pdMS_TO_TICKS(30));
-    motorA_set(-0.5);
-    motorB_set(-0.5);
-    motorC_set(-0.5);
+    motor_setA(-0.5);
+    motor_setB(-0.5);
+    motor_setC(-0.5);
     vTaskDelay(pdMS_TO_TICKS(30));
-    motorA_set(0);
-    motorB_set(0);
-    motorC_set(0);
+    motor_setA(0);
+    motor_setB(0);
+    motor_setC(0);
 
     while (1)
     {
-        if (mode == FPS)
+        if (status.mode == MODE_FPS)
         {
-            omni_drive_fps(speed.v, speed.yaw);
+            // omni_drive_fps(speed.v, speed.yaw);
         }
         else
         {
-            omni_drive_tps(speed.x, speed.y, speed.yaw, position.yaw);
+            // omni_drive_tps(speed.x, speed.y, speed.yaw, position.yaw);
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -470,9 +473,9 @@ static void monitor_task(void *pvParameters)
 void app_main(void)
 {
     xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
-    xTaskCreate(sensor_task, "sensor_task", 1 * 4096, NULL, 1, NULL);
-    xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
-    xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
-    xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
-    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
+    // xTaskCreate(sensor_task, "sensor_task", 1 * 4096, NULL, 1, NULL);
+    // xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
+    // xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
+    // xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
+    // xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
 }
