@@ -696,8 +696,8 @@ static void motion_task(void *pvParameters)
                 /* code */
             }
             
-            status.target_speed.v = 0;
-            status.target_speed.yaw = 0;
+            status.target_speed.v = 0.8;
+            status.target_speed.yaw = 0.6;
 
             // status.set_speed.v = 0.8;
             // status.set_speed.yaw = 0.7;
@@ -853,9 +853,9 @@ void omni_drive_fps(float v, float rate_yaw)
     // For forward motion: v in x-direction of body frame
     // For yaw motion: rate_yaw * L contributes to each wheel
     // Wheel tangent vectors: ti = [ -sin βi,  cos βi ]
-    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f + rate_yaw * L/100;
-    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f + rate_yaw * L/100;
-    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f + rate_yaw * L/100;
+    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f - rate_yaw * L/100;
+    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f - rate_yaw * L/100;
+    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f - rate_yaw * L/100;
 
     ESP_LOGI(TAG, "mA: %f", mA);
     ESP_LOGI(TAG, "mB: %f", mB);
