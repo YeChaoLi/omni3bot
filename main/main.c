@@ -374,7 +374,7 @@ void omni_drive_fps(float v, float omega)
     motor_setC(mC);
 }
 
-void omni_drive_tps(float rate_x, float rate_y, float omega)
+void omni_drive_tps(float rate_x, float rate_y, float omega, float yaw)
 {
     // 1) Rotate world→body:
     //    [vxb]   [ cos yaw   sin yaw ] [rate_x]
