@@ -177,13 +177,13 @@ static void pixel_task(void *pvParameters)
             }
             /* Refresh the strip to send data */
             ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-            ESP_LOGI(TAG, "LED ON!");
+            // ESP_LOGI(TAG, "LED ON!");
         }
         else
         {
             /* Set all LED off to clear all pixels */
             ESP_ERROR_CHECK(led_strip_clear(led_strip));
-            ESP_LOGI(TAG, "LED OFF!");
+            // ESP_LOGI(TAG, "LED OFF!");
         }
 
         led_on_off = !led_on_off;
@@ -472,10 +472,10 @@ static void monitor_task(void *pvParameters)
 
 void app_main(void)
 {
-    xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
-    // xTaskCreate(sensor_task, "sensor_task", 1 * 4096, NULL, 1, NULL);
-    // xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
-    // xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
-    // xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
-    // xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
+    // xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
+    xTaskCreate(sensor_task, "sensor_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
+    xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
 }
