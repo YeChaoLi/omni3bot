@@ -1,4 +1,0 @@
-Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/home/chao/.espressif/python_env/idf6.0_py3.12_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 /home/chao/Workspace/Hackathon/omni3bot
-CMake Error: Error: generator : Ninja
-Does not match the generator used previously: Unix Makefiles
-Either remove the CMakeCache.txt file and CMakeFiles directory or choose a different binary directory.
