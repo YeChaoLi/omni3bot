@@ -83,7 +83,8 @@ struct Status
 
     enum Mode mode;
 
-} status;
+    int sensor_updated;
+} status = {0};
 
 #ifdef USE_IMU
 
@@ -129,15 +130,15 @@ static void sensor_task(void *pvParameters)
         vTaskDelete(NULL);
     }
     qmi8658_set_accel_range(&dev, QMI8658_ACCEL_RANGE_8G);
-    qmi8658_set_accel_odr(&dev, QMI8658_ACCEL_ODR_1000HZ);
-    qmi8658_set_gyro_range(&dev, QMI8658_GYRO_RANGE_512DPS);
-    qmi8658_set_gyro_odr(&dev, QMI8658_GYRO_ODR_1000HZ);
+    qmi8658_set_accel_odr(&dev, QMI8658_ACCEL_ODR_2000HZ);
+    qmi8658_set_gyro_range(&dev, QMI8658_GYRO_RANGE_1024DPS);
+    qmi8658_set_gyro_odr(&dev, QMI8658_GYRO_ODR_2000HZ);
     qmi8658_set_accel_unit_mps2(&dev, true);
     qmi8658_set_gyro_unit_rads(&dev, true);
     qmi8658_set_display_precision(&dev, 4);
 
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 1000; // ms
+    const TickType_t xFrequency = 1; // ms
     xLastWakeTime = xTaskGetTickCount();
 
     while (1)
@@ -149,13 +150,11 @@ static void sensor_task(void *pvParameters)
             ret = qmi8658_read_sensor_data(&dev, &data);
             if (ret == ESP_OK)
             {
-                ESP_LOGI(TAG, "Accel: X=%.4f m/s², Y=%.4f m/s², Z=%.4f m/s²",
-                         data.accelX, data.accelY, data.accelZ);
-                ESP_LOGI(TAG, "Gyro:  X=%.4f rad/s, Y=%.4f rad/s, Z=%.4f rad/s",
-                         data.gyroX, data.gyroY, data.gyroZ);
-                ESP_LOGI(TAG, "Temp:  %.2f °C, Timestamp: %lu",
-                         data.temperature, data.timestamp);
-                ESP_LOGI(TAG, "----------------------------------------");
+                status.current_speed.roll = data.gyroX;
+                status.current_speed.pitch = data.gyroY;
+                status.current_speed.yaw = data.gyroZ;
+                status.current_position.yaw += status.current_speed.yaw * 0.001f;
+                status.sensor_updated++;
             }
             else
             {
@@ -164,7 +163,7 @@ static void sensor_task(void *pvParameters)
         }
         else
         {
-            ESP_LOGE(TAG, "Data not ready or error reading status (error: %d)", ret);
+            // ESP_LOGE(TAG, "Data not ready or error reading status (error: %d)", ret);
         }
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -644,8 +643,8 @@ static void motion_task(void *pvParameters)
             status.target_speed.v = status.remote.x * 0.70;
             status.target_speed.yaw = -status.remote.y * 0.60;
 
-            ESP_LOGI(TAG, "target speed: %f", status.target_speed.v);
-            ESP_LOGI(TAG, "target yaw: %f", status.target_speed.yaw);
+            // ESP_LOGI(TAG, "target speed: %f", status.target_speed.v);
+            // ESP_LOGI(TAG, "target yaw: %f", status.target_speed.yaw);
 
             // Set the final speed for the mixer task
             status.set_speed.v = status.target_speed.v;
@@ -872,7 +871,7 @@ static void mixer_task(void *pvParameters)
     pwm3_init();
     pwm3_set(0);
     vTaskDelay(pdMS_TO_TICKS(500));
-    
+
     // motor_setC(0.5);
     // vTaskDelay(pdMS_TO_TICKS(5000000));
 
@@ -910,6 +909,10 @@ static void mixer_task(void *pvParameters)
 // some exception like picked up, battery low, just set a error flag
 static void monitor_task(void *pvParameters)
 {
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 1000; // ms
+    xLastWakeTime = xTaskGetTickCount();
+
     while (1)
     {
         // if (pitch > 30 || roll > 30)
@@ -918,13 +921,16 @@ static void monitor_task(void *pvParameters)
         //     pickup = true;
         // }
 
-        vTaskDelay(pdMS_TO_TICKS(200));
+        ESP_LOGI(TAG, "yaw: %f", status.current_position.yaw);
+        ESP_LOGI(TAG, "sensor update counts: %d", status.sensor_updated);
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 void app_main(void)
 {
-    xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
+    // xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
     xTaskCreate(sensor_task, "sensor_task", 2 * 4096, NULL, 1, NULL);
     xTaskCreate(pixel_task, "pixel_task", 2 * 4096, NULL, 3, NULL);
     xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
