@@ -14,5 +14,5 @@ dependencies:
   #   # `public` flag doesn't have an effect dependencies of the `main` component.
   #   # All dependencies of `main` are public by default.
   #   public: true
-  esp-idf-lib/qmi8658c: '*'
   espressif/led_strip: ^3.0.1~1
+  waveshare/qmi8658: ^1.0.1

@@ -1,8 +1,8 @@
 {
   "C_Cpp.intelliSenseEngine": "default",
-  "idf.espIdfPath": "/home/chao/esp/master/esp-idf",
+  "idf.espIdfPath": "/home/chao/esp/v5.5/esp-idf",
   "idf.toolsPath": "/home/chao/.espressif",
-  "idf.pythonInstallPath": "C:\\Espressif\\tools\\idf-python\\3.11.2\\python.exe",
+  "idf.pythonInstallPath": "/usr/bin/python3",
   "idf.openOcdConfigs": [
     "interface/ftdi/esp_ftdi.cfg",
     "target/esp32s3.cfg"
@@ -14,7 +14,9 @@
     "esp_bt.h": "c",
     "qmi8658c.h": "c",
     "freertos.h": "c",
-    "math.h": "c"
+    "math.h": "c",
+    "float.h": "c",
+    "qmi8658.h": "c"
   },
   "idf.port": "/dev/ttyACM0"
 }
