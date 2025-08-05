@@ -912,6 +912,19 @@ static void monitor_task(void *pvParameters)
     }
 }
 
+static void debug_task(void *pvParameters)
+{
+    while (1)
+    {
+        ESP_LOGI(TAG, "mode: %d", status.mode);
+        ESP_LOGI(TAG, "target_speed: %f, %f", status.target_speed.v, status.target_speed.yaw);
+        ESP_LOGI(TAG, "IMU: %f, %f, %f", status.imu.roll, status.imu.pitch, status.imu.yaw);
+        ESP_LOGI(TAG, "set_speed: %f, %f", status.set_speed.v, status.set_speed.yaw);
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+}
+
 void app_main(void)
 {
     xTaskCreate(remote_task, "remote_task", 2 * 4096, NULL, 2, NULL);
@@ -920,4 +933,5 @@ void app_main(void)
     xTaskCreate(motion_task, "motion_task", 1 * 4096, NULL, 1, NULL);
     xTaskCreate(mixer_task, "mixer_task", 1 * 4096, NULL, 1, NULL);
     xTaskCreate(monitor_task, "monitor_task", 1 * 4096, NULL, 1, NULL);
+    xTaskCreate(debug_task, "debug_task", 1 * 4096, NULL, 1, NULL);
 }
