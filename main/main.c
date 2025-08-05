@@ -797,11 +797,7 @@ static void motor_setC(float throttle)
 
 void omni_drive_fps(float v, float rate_yaw)
 {
-    // PROJECT body motion into each wheel's drive direction.
-    // v is forward velocity in body frame (x-axis)
-    // rate_yaw is angular velocity around z-axis
-
-    // Project (v, 0) + rate_yaw*L into each wheel's tangent axis:
+    // Project (v, 0) - rate_yaw*L into each wheel's tangent axis:
     // For forward motion: v in x-direction of body frame
     // For yaw motion: rate_yaw * L contributes to each wheel
     // Wheel tangent vectors: ti = [ -sin βi,  cos βi ]
@@ -828,19 +824,21 @@ void omni_drive_fps(float v, float rate_yaw)
     motor_setC(mC);
 }
 
-void omni_drive_tps(float rate_x, float rate_y, float omega, float yaw)
+void omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw)
 {
     // 1) Rotate world→body:
-    //    [vxb]   [ cos yaw   sin yaw ] [rate_x]
-    //    [vyb] = [ -sin yaw  cos yaw ] [rate_y]
-    float vxb = rate_x * cosf(yaw) + rate_y * sinf(yaw);
-    float vyb = -rate_x * sinf(yaw) + rate_y * cosf(yaw);
+    // Transform world frame velocities to body frame using rotation matrix
+    float cos_yaw = cosf(yaw);
+    float sin_yaw = sinf(yaw);
+    float v_x_body = rate_x * cos_yaw + rate_y * sin_yaw;
+    float v_y_body = -rate_x * sin_yaw + rate_y * cos_yaw;
 
-    // 2) Project (vxb, vyb) + ω·L into each wheel’s tangent axis:
-    //    ti = [ -sin βi,  cos βi ]
-    float mA = -sinf(BETA_A) * vxb + cosf(BETA_A) * vyb + omega * L;
-    float mB = -sinf(BETA_B) * vxb + cosf(BETA_B) * vyb + omega * L;
-    float mC = -sinf(BETA_C) * vxb + cosf(BETA_C) * vyb + omega * L;
+    // 2) Project body frame velocities to wheel frame
+    // Project (v_x_body, v_y_body) - rate_yaw*L into each wheel's tangent axis:
+    // Wheel tangent vectors: ti = [ -sin βi,  cos βi ]
+    float mA = -sinf(BETA_A) * v_x_body + cosf(BETA_A) * v_y_body - rate_yaw * L / 100;
+    float mB = -sinf(BETA_B) * v_x_body + cosf(BETA_B) * v_y_body - rate_yaw * L / 100;
+    float mC = -sinf(BETA_C) * v_x_body + cosf(BETA_C) * v_y_body - rate_yaw * L / 100;
 
     // 3) Normalize if any |m| > 1 so we stay in the [–1…+1] throttle range
     float maxm = fmaxf(fabsf(mA), fmaxf(fabsf(mB), fabsf(mC)));
@@ -852,9 +850,9 @@ void omni_drive_tps(float rate_x, float rate_y, float omega, float yaw)
     }
 
     // 4) Send to your motor drivers:
-    // motor_setA(mA);
-    // motor_setB(mB);
-    // motor_setC(mC);
+    motor_setA(mA);
+    motor_setB(mB);
+    motor_setC(mC);
 }
 
 // An omni3 mixer (120 degrees apart in 3 directions) we don’t have any torque control or speed feedback, so just control speed with pwm pulse width
@@ -874,18 +872,18 @@ static void mixer_task(void *pvParameters)
     pwm3_init();
     pwm3_set(0);
     vTaskDelay(pdMS_TO_TICKS(500));
-
+    
     // motor_setC(0.5);
     // vTaskDelay(pdMS_TO_TICKS(5000000));
 
-    motor_setA(0.5);
-    motor_setB(0.5);
-    motor_setC(0.5);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    motor_setA(-0.5);
-    motor_setB(-0.5);
-    motor_setC(-0.5);
-    vTaskDelay(pdMS_TO_TICKS(120));
+    motor_setA(0.3);
+    motor_setB(0.3);
+    motor_setC(0.3);
+    vTaskDelay(pdMS_TO_TICKS(200));
+    motor_setA(-0.3);
+    motor_setB(-0.3);
+    motor_setC(-0.3);
+    vTaskDelay(pdMS_TO_TICKS(200));
     motor_setA(0);
     motor_setB(0);
     motor_setC(0);
@@ -898,7 +896,7 @@ static void mixer_task(void *pvParameters)
         }
         else
         {
-            // omni_drive_tps(status.target_speed.x, status.target_speed.y, status.target_speed.yaw, status.target_position.yaw);
+            omni_drive_tps(status.target_speed.x, status.target_speed.y, status.target_speed.yaw, status.target_position.yaw);
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));
