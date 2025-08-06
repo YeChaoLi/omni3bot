@@ -909,9 +909,6 @@ static void mixer_task(void *pvParameters)
 // some exception like picked up, battery low, just set a error flag
 static void monitor_task(void *pvParameters)
 {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 1000; // ms
-    xLastWakeTime = xTaskGetTickCount();
 
     while (1)
     {
@@ -921,23 +918,26 @@ static void monitor_task(void *pvParameters)
         //     pickup = true;
         // }
 
-        ESP_LOGI(TAG, "yaw: %f", status.current_position.yaw);
-        ESP_LOGI(TAG, "sensor update counts: %d", status.sensor_updated);
-
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 static void debug_task(void *pvParameters)
 {
+    TickType_t xLastWakeTime; 
+    const TickType_t xFrequency = 1000; // ms
+    xLastWakeTime = xTaskGetTickCount();
+
     while (1)
     {
         ESP_LOGI(TAG, "mode: %d", status.mode);
         ESP_LOGI(TAG, "target_speed: %f, %f", status.target_speed.v, status.target_speed.yaw);
-        ESP_LOGI(TAG, "IMU: %f, %f, %f", status.imu.roll, status.imu.pitch, status.imu.yaw);
-        ESP_LOGI(TAG, "set_speed: %f, %f", status.set_speed.v, status.set_speed.yaw);
+        ESP_LOGI(TAG, "set_speed: v=%f, yaw=%f", status.set_speed.v, status.set_speed.yaw);
+        ESP_LOGI(TAG, "set_speed: x=%f, y=%f, yaw=%f", status.set_speed.x, status.set_speed.y, status.set_speed.yaw);
+        ESP_LOGI(TAG, "IMU: %f, %f, %f. yaw: %f", status.current_speed.roll, status.current_speed.pitch, status.current_speed.yaw, status.current_position.yaw);
 
-        vTaskDelay(pdMS_TO_TICKS(200));
+        ESP_LOGI(TAG, "sensor update counts: %d", status.sensor_updated);
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
