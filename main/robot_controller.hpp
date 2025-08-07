@@ -8,14 +8,68 @@
 #include <memory>
 #include <cmath>
 #include <algorithm>
+#include <Eigen/Dense>
 
-// Forward declarations for ESP-IDF components
+// Matrix transformation utilities for 2D coordinate manipulation
+// Using Eigen library for efficient matrix operations instead of manual sin/cos calculations
+// Benefits:
+// - More readable and maintainable code
+// - Optimized matrix operations
+// - Better numerical stability
+// - Easier to extend for more complex transformations
 extern "C" {
     #include "qmi8658.h"
     #include "led_strip.h"
     #include "esp_hidh.h"
     #include "esp_hid_gap.h"
     #include "driver/ledc.h"
+}
+
+// Matrix transformation utilities for 2D coordinate manipulation
+namespace MatrixUtils {
+    // Create 2D rotation matrix
+    inline Eigen::Matrix2f rotation_matrix(float angle) {
+        return Eigen::Rotation2f(angle).matrix();
+    }
+    
+    // Create 2D translation vector
+    inline Eigen::Vector2f translation_vector(float x, float y) {
+        return Eigen::Vector2f(x, y);
+    }
+    
+    // Apply rotation to a 2D vector
+    inline Eigen::Vector2f rotate_vector(const Eigen::Vector2f& vec, float angle) {
+        return rotation_matrix(angle) * vec;
+    }
+    
+    // Transform from world coordinates to body coordinates
+    inline Eigen::Vector2f world_to_body(const Eigen::Vector2f& world_vec, float yaw) {
+        return rotation_matrix(yaw) * world_vec;
+    }
+    
+    // Transform from body coordinates to world coordinates
+    inline Eigen::Vector2f body_to_world(const Eigen::Vector2f& body_vec, float yaw) {
+        return rotation_matrix(-yaw) * body_vec;
+    }
+    
+    // Create wheel kinematics matrix for omni drive
+    inline Eigen::Matrix3f create_wheel_kinematics_matrix(float beta_a, float beta_b, float beta_c) {
+        Eigen::Matrix3f H;
+        // Each row represents the contribution of (vx, vy, omega) to each wheel
+        H.row(0) = Eigen::Vector3f(-sinf(beta_a), cosf(beta_a), -1.0f);  // Wheel A
+        H.row(1) = Eigen::Vector3f(-sinf(beta_b), cosf(beta_b), -1.0f);  // Wheel B  
+        H.row(2) = Eigen::Vector3f(-sinf(beta_c), cosf(beta_c), -1.0f);  // Wheel C
+        return H;
+    }
+    
+    // Compute wheel speeds from body velocities using matrix operations
+    inline Eigen::Vector3f compute_wheel_speeds(const Eigen::Vector3f& body_velocities, 
+                                               const Eigen::Matrix3f& wheel_matrix, 
+                                               float wheel_distance) {
+        Eigen::Vector3f scaled_velocities = body_velocities;
+        scaled_velocities(2) *= wheel_distance / 100.0f; // Scale yaw rate by wheel distance
+        return wheel_matrix * scaled_velocities;
+    }
 }
 
 #define USE_IMU
@@ -146,6 +200,9 @@ private:
     static constexpr float BETA_A = -M_PI / 3.0f;
     static constexpr float BETA_B = M_PI / 3.0f;
     static constexpr float BETA_C = M_PI;
+    
+    // Pre-computed wheel kinematics matrix for efficiency
+    Eigen::Matrix3f wheel_kinematics_matrix_;
 
 public:
     void initialize();
@@ -165,6 +222,7 @@ public:
 class DebugLogger {
 public:
     void log_status();
+    void test_eigen_implementation();
 };
 
 // Task function declarations

@@ -417,6 +417,9 @@ void OmniDriveController::initialize() {
     pwm_controller_.initialize_channel(LEDC_CHANNEL_1, 5);
     pwm_controller_.initialize_channel(LEDC_CHANNEL_2, 6);
     
+    // Pre-compute wheel kinematics matrix for efficiency
+    wheel_kinematics_matrix_ = MatrixUtils::create_wheel_kinematics_matrix(BETA_A, BETA_B, BETA_C);
+    
     // Initialize all motors to zero
     pwm_controller_.set_duty(LEDC_CHANNEL_0, 0.0f);
     pwm_controller_.set_duty(LEDC_CHANNEL_1, 0.0f);
@@ -465,10 +468,16 @@ void OmniDriveController::motor_setC(float throttle) {
 }
 
 void OmniDriveController::omni_drive_fps(float v, float rate_yaw) {
-    // Project (v, 0) - rate_yaw*L into each wheel's tangent axis
-    float mA = -sinf(BETA_A) * v + cosf(BETA_A) * 0.0f - rate_yaw * L / 100.0f;
-    float mB = -sinf(BETA_B) * v + cosf(BETA_B) * 0.0f - rate_yaw * L / 100.0f;
-    float mC = -sinf(BETA_C) * v + cosf(BETA_C) * 0.0f - rate_yaw * L / 100.0f;
+    // Create body velocity vector (vx, vy, omega)
+    Eigen::Vector3f body_velocities(v, 0.0f, rate_yaw);
+    
+    // Compute wheel speeds using pre-computed kinematics matrix
+    Eigen::Vector3f wheel_speeds = MatrixUtils::compute_wheel_speeds(body_velocities, wheel_kinematics_matrix_, L);
+    
+    // Extract individual wheel speeds
+    float mA = wheel_speeds(0);
+    float mB = wheel_speeds(1);
+    float mC = wheel_speeds(2);
 
     // Normalize if any |m| exceeds 1.0
     float maxm = std::max(std::abs(mA), std::max(std::abs(mB), std::abs(mC)));
@@ -484,16 +493,22 @@ void OmniDriveController::omni_drive_fps(float v, float rate_yaw) {
 }
 
 void OmniDriveController::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw) {
-    // Rotate world→body
-    float cos_yaw = cosf(yaw);
-    float sin_yaw = sinf(yaw);
-    float v_x_body = rate_x * cos_yaw + rate_y * sin_yaw;
-    float v_y_body = -rate_x * sin_yaw + rate_y * cos_yaw;
-
-    // Project body frame velocities to wheel frame
-    float mA = -sinf(BETA_A) * v_x_body + cosf(BETA_A) * v_y_body - rate_yaw * L / 100.0f;
-    float mB = -sinf(BETA_B) * v_x_body + cosf(BETA_B) * v_y_body - rate_yaw * L / 100.0f;
-    float mC = -sinf(BETA_C) * v_x_body + cosf(BETA_C) * v_y_body - rate_yaw * L / 100.0f;
+    // Create world frame velocity vector
+    Eigen::Vector2f velocity_world = MatrixUtils::translation_vector(rate_x, rate_y);
+    
+    // Transform world→body using rotation matrix
+    Eigen::Vector2f velocity_body = MatrixUtils::world_to_body(velocity_world, yaw);
+    
+    // Create body velocity vector (vx, vy, omega)
+    Eigen::Vector3f body_velocities(velocity_body(0), velocity_body(1), rate_yaw);
+    
+    // Compute wheel speeds using pre-computed kinematics matrix
+    Eigen::Vector3f wheel_speeds = MatrixUtils::compute_wheel_speeds(body_velocities, wheel_kinematics_matrix_, L);
+    
+    // Extract individual wheel speeds
+    float mA = wheel_speeds(0);
+    float mB = wheel_speeds(1);
+    float mC = wheel_speeds(2);
 
     // Normalize if any |m| > 1
     float maxm = std::max(std::abs(mA), std::max(std::abs(mB), std::abs(mC)));
@@ -551,11 +566,36 @@ void DebugLogger::log_status() {
     ESP_LOGI(TAG, "sensor update counts: %d", status.sensor_updated);
 }
 
+void DebugLogger::test_eigen_implementation() {
+    // Test rotation matrix creation
+    Eigen::Matrix2f rot_90 = MatrixUtils::rotation_matrix(M_PI / 2.0f);
+    ESP_LOGI(TAG, "Rotation 90° matrix: [[%f, %f], [%f, %f]]", 
+             rot_90(0,0), rot_90(0,1), rot_90(1,0), rot_90(1,1));
+    
+    // Test vector rotation
+    Eigen::Vector2f vec(1.0f, 0.0f);
+    Eigen::Vector2f rotated = MatrixUtils::rotate_vector(vec, M_PI / 2.0f);
+    ESP_LOGI(TAG, "Vector (1,0) rotated 90°: (%f, %f)", rotated(0), rotated(1));
+    
+    // Test world to body transformation
+    Eigen::Vector2f world_vel(1.0f, 1.0f);
+    Eigen::Vector2f body_vel = MatrixUtils::world_to_body(world_vel, M_PI / 4.0f);
+    ESP_LOGI(TAG, "World velocity (1,1) to body (45°): (%f, %f)", body_vel(0), body_vel(1));
+    
+    // Test wheel kinematics matrix
+    Eigen::Matrix3f wheel_matrix = MatrixUtils::create_wheel_kinematics_matrix(-M_PI/3, M_PI/3, M_PI);
+    ESP_LOGI(TAG, "Wheel kinematics matrix created successfully");
+    ESP_LOGI(TAG, "Matrix determinant: %f", wheel_matrix.determinant());
+}
+
 void debug_task(void *pvParameters) {
     auto logger = std::make_unique<DebugLogger>();
     TickType_t xLastWakeTime; 
     const TickType_t xFrequency = 1000; // ms
     xLastWakeTime = xTaskGetTickCount();
+
+    // Run Eigen test once at startup
+    logger->test_eigen_implementation();
 
     while (true) {
         logger->log_status();
