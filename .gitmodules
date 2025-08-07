@@ -1,0 +1,3 @@
+[submodule "components/ESP_CRSF"]
+	path = components/ESP_CRSF
+	url = https://github.com/AlfredoSystems/AlfredoCRSF.git
