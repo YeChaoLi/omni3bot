@@ -1,4 +1,4 @@
-# Omni3Bot - ESP32 Omni-directional Robot
+# Omni3Bot: ESP32 Omni-directional Robot
 
 ## Intro
 
