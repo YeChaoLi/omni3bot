@@ -28,6 +28,9 @@ extern "C"
 #include "ESP_CRSF.h"
 }
 
+#ifdef TAG
+#undef TAG
+#endif
 #define TAG "omni3"
 
 // Global status instance
