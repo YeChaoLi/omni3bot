@@ -21,3 +21,26 @@ menu "HID Example Configuration"
         help
             Use this option to set target device name to connect.
 endmenu
+
+menu "CRSF Configuration"
+    config CRSF_UART_NUM
+        int "CRSF UART Number"
+        default 1
+        range 0 2
+        help
+            UART controller number to use for CRSF communication.
+    
+    config CRSF_TX_PIN
+        int "CRSF TX Pin"
+        default 17
+        range 0 48
+        help
+            GPIO pin for CRSF TX (transmit).
+    
+    config CRSF_RX_PIN
+        int "CRSF RX Pin"
+        default 16
+        range 0 48
+        help
+            GPIO pin for CRSF RX (receive).
+endmenu

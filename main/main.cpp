@@ -23,6 +23,12 @@
 #include <memory>
 #include <vector>
 #include <functional>
+extern "C"
+{
+#include "ESP_CRSF.h"
+}
+
+#define TAG "omni3"
 
 // Global status instance
 RobotStatus status;
@@ -389,7 +395,7 @@ esp_err_t RemoteController::initialize()
     return ESP_OK;
 }
 
-void remote_task(void *pvParameters)
+void ble_task(void *pvParameters)
 {
     auto remote = std::make_unique<RemoteController>();
     esp_err_t ret = remote->initialize();
@@ -492,10 +498,10 @@ void OmniDriveController::initialize()
     pwm_controller_.initialize_channel(LEDC_CHANNEL_0, 4);
     pwm_controller_.initialize_channel(LEDC_CHANNEL_1, 5);
     pwm_controller_.initialize_channel(LEDC_CHANNEL_2, 6);
-    
+
     // Pre-compute wheel kinematics matrix for efficiency
     wheel_kinematics_matrix_ = MatrixUtils::create_wheel_kinematics_matrix(BETA_A, BETA_B, BETA_C);
-    
+
     // Initialize all motors to zero
     pwm_controller_.set_duty(LEDC_CHANNEL_0, 0.0f);
     pwm_controller_.set_duty(LEDC_CHANNEL_1, 0.0f);
@@ -546,13 +552,14 @@ void OmniDriveController::motor_setC(float throttle)
 #endif
 }
 
-void OmniDriveController::omni_drive_fps(float v, float rate_yaw) {
+void OmniDriveController::omni_drive_fps(float v, float rate_yaw)
+{
     // Create body velocity vector (vx, vy, omega)
     Eigen::Vector3f body_velocities(v, 0.0f, rate_yaw);
-    
+
     // Compute wheel speeds using pre-computed kinematics matrix
     Eigen::Vector3f wheel_speeds = MatrixUtils::compute_wheel_speeds(body_velocities, wheel_kinematics_matrix_, L);
-    
+
     // Extract individual wheel speeds
     float mA = wheel_speeds(0);
     float mB = wheel_speeds(1);
@@ -572,19 +579,20 @@ void OmniDriveController::omni_drive_fps(float v, float rate_yaw) {
     motor_setC(mC);
 }
 
-void OmniDriveController::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw) {
+void OmniDriveController::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw)
+{
     // Create world frame velocity vector
     Eigen::Vector2f velocity_world = MatrixUtils::translation_vector(rate_x, rate_y);
-    
+
     // Transform world→body using rotation matrix
     Eigen::Vector2f velocity_body = MatrixUtils::world_to_body(velocity_world, yaw);
-    
+
     // Create body velocity vector (vx, vy, omega)
     Eigen::Vector3f body_velocities(velocity_body(0), velocity_body(1), rate_yaw);
-    
+
     // Compute wheel speeds using pre-computed kinematics matrix
     Eigen::Vector3f wheel_speeds = MatrixUtils::compute_wheel_speeds(body_velocities, wheel_kinematics_matrix_, L);
-    
+
     // Extract individual wheel speeds
     float mA = wheel_speeds(0);
     float mB = wheel_speeds(1);
@@ -638,29 +646,31 @@ void DebugLogger::log_status()
     // ESP_LOGI(TAG, "sensor update counts: %d", status.sensor_updated);
 }
 
-void DebugLogger::test_eigen_implementation() {
+void DebugLogger::test_eigen_implementation()
+{
     // Test rotation matrix creation
     Eigen::Matrix2f rot_90 = MatrixUtils::rotation_matrix(M_PI / 2.0f);
-    ESP_LOGI(TAG, "Rotation 90° matrix: [[%f, %f], [%f, %f]]", 
-             rot_90(0,0), rot_90(0,1), rot_90(1,0), rot_90(1,1));
-    
+    ESP_LOGI(TAG, "Rotation 90° matrix: [[%f, %f], [%f, %f]]",
+             rot_90(0, 0), rot_90(0, 1), rot_90(1, 0), rot_90(1, 1));
+
     // Test vector rotation
     Eigen::Vector2f vec(1.0f, 0.0f);
     Eigen::Vector2f rotated = MatrixUtils::rotate_vector(vec, M_PI / 2.0f);
     ESP_LOGI(TAG, "Vector (1,0) rotated 90°: (%f, %f)", rotated(0), rotated(1));
-    
+
     // Test world to body transformation
     Eigen::Vector2f world_vel(1.0f, 1.0f);
     Eigen::Vector2f body_vel = MatrixUtils::world_to_body(world_vel, M_PI / 4.0f);
     ESP_LOGI(TAG, "World velocity (1,1) to body (45°): (%f, %f)", body_vel(0), body_vel(1));
-    
+
     // Test wheel kinematics matrix
-    Eigen::Matrix3f wheel_matrix = MatrixUtils::create_wheel_kinematics_matrix(-M_PI/3, M_PI/3, M_PI);
+    Eigen::Matrix3f wheel_matrix = MatrixUtils::create_wheel_kinematics_matrix(-M_PI / 3, M_PI / 3, M_PI);
     ESP_LOGI(TAG, "Wheel kinematics matrix created successfully");
     ESP_LOGI(TAG, "Matrix determinant: %f", wheel_matrix.determinant());
 }
 
-void debug_task(void *pvParameters) {
+void debug_task(void *pvParameters)
+{
     auto logger = std::make_unique<DebugLogger>();
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 1000; // ms
@@ -669,18 +679,101 @@ void debug_task(void *pvParameters) {
     // Run Eigen test once at startup
     logger->test_eigen_implementation();
 
-    while (true) {
+    while (true)
+    {
         logger->log_status();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
+#ifdef USE_CRSF
+void radio_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "Starting radio task");
+
+    // CRSF configuration
+    crsf_config_t crsf_config = {
+        .uart_num = CONFIG_CRSF_UART_NUM,
+        .tx_pin = CONFIG_CRSF_TX_PIN,
+        .rx_pin = CONFIG_CRSF_RX_PIN};
+
+    // Initialize CRSF
+    CRSF_init(&crsf_config);
+    ESP_LOGI(TAG, "CRSF initialized");
+
+    // Channel data structure
+    crsf_channels_t channels = {0};
+
+    // Battery telemetry data
+    crsf_battery_t battery = {0};
+
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 50; // 20Hz update rate
+    xLastWakeTime = xTaskGetTickCount();
+
+    while (true)
+    {
+        // Receive channel data
+        CRSF_receive_channels(&channels);
+
+        // Map CRSF channels to robot control
+        // Assuming standard mapping:
+        // ch1: roll (left/right)
+        // ch2: pitch (forward/backward)
+        // ch3: throttle (up/down)
+        // ch4: yaw (rotation)
+
+        // Convert 11-bit values (0-2047) to normalized values (-1.0 to 1.0)
+        float roll = (channels.ch1 - 1024.0f) / 1024.0f;
+        float pitch = (channels.ch2 - 1024.0f) / 1024.0f;
+        float throttle = (channels.ch3 - 1024.0f) / 1024.0f;
+        float yaw = (channels.ch4 - 1024.0f) / 1024.0f;
+
+        // Apply deadzone
+        const float deadzone = 0.1f;
+        if (std::abs(roll) < deadzone)
+            roll = 0.0f;
+        if (std::abs(pitch) < deadzone)
+            pitch = 0.0f;
+        if (std::abs(throttle) < deadzone)
+            throttle = 0.0f;
+        if (std::abs(yaw) < deadzone)
+            yaw = 0.0f;
+
+        // Update robot status with remote control data
+        status.remote.x = pitch;   // Forward/backward
+        status.remote.y = roll;    // Left/right
+        status.remote.theta = yaw; // Rotation
+
+        // Log channel values periodically
+        static int log_counter = 0;
+        if (++log_counter >= 100)
+        { // Log every 5 seconds at 20Hz
+            ESP_LOGI(TAG, "CRSF Channels - Roll: %.3f, Pitch: %.3f, Throttle: %.3f, Yaw: %.3f",
+                     roll, pitch, throttle, yaw);
+            log_counter = 0;
+        }
+
+        // Send battery telemetry back to transmitter
+        battery.voltage = 120;   // 12.0V * 10
+        battery.current = 50;    // 5.0A * 10
+        battery.capacity = 1000; // 1000mAh
+        battery.remaining = 80;  // 80%
+
+        CRSF_send_battery_data(CRSF_DEST_FC, &battery);
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+#endif
+
 extern "C" void app_main(void)
 {
-    xTaskCreate(remote_task, "remote_task", 2 * 4096, nullptr, 1, nullptr);
-    // xTaskCreate(sensor_task, "sensor_task", 2 * 4096, nullptr, 1, nullptr);
-    // xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
-    // xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
-    // xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
-    // xTaskCreate(debug_task, "debug_task", 1 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(radio_task, "radio_task", 1 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(sensor_task, "sensor_task", 2 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
+    xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(debug_task, "debug_task", 1 * 4096, nullptr, 1, nullptr);
 }

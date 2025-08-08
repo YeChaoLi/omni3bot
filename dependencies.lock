@@ -1,4 +1,14 @@
 dependencies:
+  espressif/eigen:
+    component_hash: 64a82d75ea6b7cb9240398ce0b6616e905d71b83a734b2cf9cb58ad09dd4f5ea
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.3.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 3.4.0~2
   espressif/led_strip:
     component_hash: 223998f10cae6d81f2ad2dd3c1103c2221be298c708e37917482b0153f3ec64e
     dependencies:
@@ -24,9 +34,10 @@ dependencies:
       type: service
     version: 1.0.1
 direct_dependencies:
+- espressif/eigen
 - espressif/led_strip
 - idf
 - waveshare/qmi8658
-manifest_hash: 4f66353e87175395c33b4787beb97de1f89d697c5db416e069665ddc269248ab
+manifest_hash: f5a1976c5eac9da160130da9ff3e3f66c0c639201cd9a8937b1781061bf0d657
 target: esp32s3
 version: 2.0.0
