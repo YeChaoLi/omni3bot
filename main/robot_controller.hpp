@@ -9,6 +9,7 @@
 #include <cmath>
 #include <algorithm>
 #include <Eigen/Dense>
+#include "madgwick_filter.hpp"  // Include Madgwick filter
 
 // Matrix transformation utilities for 2D coordinate manipulation
 // Using Eigen library for efficient matrix operations instead of manual sin/cos calculations
@@ -187,21 +188,32 @@ private:
     float gyro_bias_x_ = -0.002182f, gyro_bias_y_ = 0.047997f, gyro_bias_z_ = -0.019090f;
 
     float accel_scale_x_ = 1.0f, accel_scale_y_ = 1.0f, accel_scale_z_ = 1.0f;
-    float gyro_scale_x_ = 1.0f, gyro_scale_y_ = 1.0f, gyro_scale_z_ = 1.0f;
+    // float gyro_scale_x_ = 1.0f, gyro_scale_y_ = 1.0f, gyro_scale_z_ = 1.0f;
+    float gyro_scale_x_ = 0.5f, gyro_scale_y_ = 0.5f, gyro_scale_z_ = 0.5f;
 
     // Low-pass filter states for each sensor axis
     LPF2State accel_lpf_x_, accel_lpf_y_, accel_lpf_z_;
     LPF2State gyro_lpf_x_, gyro_lpf_y_, gyro_lpf_z_;
 
+    // Madgwick filter for attitude estimation
+    espp::MadgwickFilter madgwick_filter_;
+    
+    // Timing for Madgwick filter
+    uint32_t last_update_time_ms_ = 0;
+
     // Private helper functions
     void lpf2_init(LPF2State& filter, float cutoff_freq, float sampling_rate);
     float lpf2_apply(LPF2State& filter, float input);
+    void update_attitude(float ax, float ay, float az, float gx, float gy, float gz);
 
 public:
     IMUManager();
     esp_err_t initialize();
     void update();
     bool is_initialized() const { return initialized_; }
+    
+    // Get current attitude from Madgwick filter
+    void get_attitude(float& roll, float& pitch, float& yaw) const;
 };
 #endif
 

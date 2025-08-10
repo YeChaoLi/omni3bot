@@ -5,6 +5,7 @@
 #include <esp_system.h>
 #include <esp_log.h>
 #include <esp_err.h>
+#include <esp_timer.h> // For esp_timer_get_time()
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +19,7 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_bt.h"
+#include "esp_random.h"
 #include <math.h>
 #include <float.h>
 #include <memory>
@@ -39,6 +41,8 @@ RobotStatus status;
 #ifdef USE_IMU
 
 IMUManager::IMUManager()
+    : madgwick_filter_(0.1f), // Initialize Madgwick filter with beta = 0.1
+      last_update_time_ms_(0) // Initialize timing for Madgwick filter
 {
     // Initialize accelerometer filters with 10Hz cutoff
     lpf2_init(accel_lpf_x_, 10.0f, SAMPLING_RATE);
@@ -133,6 +137,39 @@ esp_err_t IMUManager::initialize()
     return ESP_OK;
 }
 
+void IMUManager::update_attitude(float ax, float ay, float az, float gx, float gy, float gz)
+{
+    // Calculate time delta for Madgwick filter
+    uint32_t current_time_ms = esp_timer_get_time() / 1000;
+    float dt = (current_time_ms - last_update_time_ms_) / 1000.0f; // Convert to seconds
+
+    // Ensure dt is reasonable (avoid large jumps)
+    if (dt > 0.1f)
+        dt = 0.001f; // Cap at 100ms, default to 1ms
+    if (dt < 0.0001f)
+        dt = 0.001f; // Minimum 0.1ms
+
+    // Update Madgwick filter with sensor data
+    // Note: Madgwick expects:
+    // - Accelerometer in g units
+    // - Gyroscope in rad/s units
+    madgwick_filter_.update(dt, ax, ay, az, gx, gy, gz);
+
+    // Update timing
+    last_update_time_ms_ = current_time_ms;
+}
+
+void IMUManager::get_attitude(float &roll, float &pitch, float &yaw) const
+{
+    // Get Euler angles from Madgwick filter (in degrees)
+    madgwick_filter_.get_euler(pitch, roll, yaw);
+
+    // Convert to radians to match existing code
+    roll *= M_PI / 180.0f;
+    pitch *= M_PI / 180.0f;
+    yaw *= M_PI / 180.0f;
+}
+
 void IMUManager::update()
 {
     if (!initialized_)
@@ -167,13 +204,40 @@ void IMUManager::update()
             // status.sensor_data.gyro_y = lpf2_apply(gyro_lpf_y_, gyroY);
             // status.sensor_data.gyro_z = lpf2_apply(gyro_lpf_z_, gyroZ);
             status.sensor_data.acc_x = -accelX;
-            status.sensor_data.acc_y = -accelY;
+            status.sensor_data.acc_y = accelY;
             status.sensor_data.acc_z = -accelZ;
             status.sensor_data.gyro_x = -gyroX;
-            status.sensor_data.gyro_y = -gyroY;
+            status.sensor_data.gyro_y = gyroY;
             status.sensor_data.gyro_z = -gyroZ;
 
-            // status.sensor_data.yaw += status.sensor_data.gyro_z * 180.0f / M_PI * 0.001f;
+            // status.sensor_data.yaw += status.sensor_data.gyro_z * 0.01f;
+            // ESP_LOGI(TAG, "yaw: %f", status.sensor_data.yaw);
+
+            // ESP_LOGI(TAG, "accel: %f %f %f; gyro: %f %f %f", status.sensor_data.acc_x, status.sensor_data.acc_y, status.sensor_data.acc_z, status.sensor_data.gyro_x, status.sensor_data.gyro_y, status.sensor_data.gyro_z);
+
+            // madgwick use right-handed coordinate
+
+            // Update Madgwick filter with processed sensor data
+            update_attitude(status.sensor_data.acc_x, status.sensor_data.acc_y, status.sensor_data.acc_z,
+                            status.sensor_data.gyro_x, status.sensor_data.gyro_y, status.sensor_data.gyro_z);
+
+            // Get filtered attitude from Madgwick filter
+            float roll, pitch, yaw;
+            get_attitude(pitch, roll, yaw);
+
+            // ESP_LOGI(TAG, "Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f°", roll * 180 / M_PI, pitch * 180 / M_PI, yaw * 180 / M_PI);
+
+            // Update status with filtered attitude
+            // status.sensor_data.roll = roll;
+            // status.sensor_data.pitch = pitch;
+            // status.sensor_data.yaw = yaw;
+
+            // // Also update current attitude position
+            status.current_attitude.position.roll = roll;
+            status.current_attitude.position.pitch = pitch;
+            status.current_attitude.position.yaw = yaw;
+
+            ESP_LOGI(TAG, "Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f°", status.current_attitude.position.roll * 180 / M_PI, status.current_attitude.position.pitch * 180 / M_PI, status.current_attitude.position.yaw * 180 / M_PI);
         }
         else
         {
@@ -727,7 +791,13 @@ void monitor_task(void *pvParameters)
 
 void DebugLogger::log_status()
 {
-    ESP_LOGI("Sensor", "Gyro: %f, %f, %f. Accel: %f, %f, %f.", status.sensor_data.gyro_x, status.sensor_data.gyro_y, status.sensor_data.gyro_z, status.sensor_data.acc_x, status.sensor_data.acc_y, status.sensor_data.acc_z);
+    // ESP_LOGI("Sensor", "Gyro: %f, %f, %f. Accel: %f, %f, %f.",
+    //           status.sensor_data.gyro_x, status.sensor_data.gyro_y, status.sensor_data.gyro_z,
+    //           status.sensor_data.acc_x, status.sensor_data.acc_y, status.sensor_data.acc_z);
+
+    // Print attitude angles from Madgwick filter
+    // ESP_LOGI("Attitude", "Roll: %f°, Pitch: %f°, Yaw: %f°",
+    //           status.current_attitude.position.roll, status.current_attitude.position.pitch, status.current_attitude.position.yaw);
 }
 
 void DebugLogger::test_eigen_implementation()
@@ -757,7 +827,7 @@ void debug_task(void *pvParameters)
 {
     auto logger = std::make_unique<DebugLogger>();
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 200; // ms
+    const TickType_t xFrequency = 50; // ms
     xLastWakeTime = xTaskGetTickCount();
 
     // Run Eigen test once at startup
