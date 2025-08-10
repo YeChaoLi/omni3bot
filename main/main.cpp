@@ -38,6 +38,56 @@ RobotStatus status;
 
 #ifdef USE_IMU
 
+IMUManager::IMUManager()
+{
+    // Initialize accelerometer filters with 10Hz cutoff
+    lpf2_init(accel_lpf_x_, 10.0f, SAMPLING_RATE);
+    lpf2_init(accel_lpf_y_, 10.0f, SAMPLING_RATE);
+    lpf2_init(accel_lpf_z_, 10.0f, SAMPLING_RATE);
+
+    // Initialize gyroscope filters with 50Hz cutoff
+    lpf2_init(gyro_lpf_x_, 50.0f, SAMPLING_RATE);
+    lpf2_init(gyro_lpf_y_, 50.0f, SAMPLING_RATE);
+    lpf2_init(gyro_lpf_z_, 50.0f, SAMPLING_RATE);
+}
+
+void IMUManager::lpf2_init(LPF2State &filter, float cutoff_freq, float sampling_rate)
+{
+    // Second-order Butterworth low-pass filter design
+    // Calculate normalized frequency (0 to 1, where 1 = Nyquist frequency)
+    float omega = 2.0f * M_PI * cutoff_freq / sampling_rate;
+    float sin_omega = sinf(omega);
+    float cos_omega = cosf(omega);
+    float alpha = sin_omega / (2.0f * 0.707f); // Q = 0.707 for Butterworth
+
+    // Calculate filter coefficients
+    float a0 = 1.0f + alpha;
+    filter.a1 = -2.0f * cos_omega / a0;
+    filter.a2 = (1.0f - alpha) / a0;
+
+    filter.b0 = (1.0f - cos_omega) / (2.0f * a0);
+    filter.b1 = (1.0f - cos_omega) / a0;
+    filter.b2 = (1.0f - cos_omega) / (2.0f * a0);
+
+    // Initialize state variables to zero
+    filter.x1 = filter.x2 = 0.0f;
+    filter.y1 = filter.y2 = 0.0f;
+}
+
+float IMUManager::lpf2_apply(LPF2State &filter, float input)
+{
+    // Apply second-order IIR filter: y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
+    float output = filter.b0 * input + filter.b1 * filter.x1 + filter.b2 * filter.x2 - filter.a1 * filter.y1 - filter.a2 * filter.y2;
+
+    // Update state variables
+    filter.x2 = filter.x1;
+    filter.x1 = input;
+    filter.y2 = filter.y1;
+    filter.y1 = output;
+
+    return output;
+}
+
 esp_err_t IMUManager::initialize()
 {
     esp_err_t ret;
@@ -70,6 +120,7 @@ esp_err_t IMUManager::initialize()
     }
 
     // Configure sensor
+    // you can set 1kHz ODR if use interrupt io
     qmi8658_set_accel_range(&dev_, QMI8658_ACCEL_RANGE_8G);
     qmi8658_set_accel_odr(&dev_, QMI8658_ACCEL_ODR_2000HZ);
     qmi8658_set_gyro_range(&dev_, QMI8658_GYRO_RANGE_1024DPS);
@@ -91,14 +142,38 @@ void IMUManager::update()
     esp_err_t ret = qmi8658_is_data_ready(&dev_, &ready);
     if (ret == ESP_OK && ready)
     {
-        ret = qmi8658_read_sensor_data(&dev_, &data_);
+        ret = qmi8658_read_sensor_data(&dev_, &raw_data_);
         if (ret == ESP_OK)
         {
-            status.current_speed.roll = data_.gyroX;
-            status.current_speed.pitch = data_.gyroY;
-            status.current_speed.yaw = data_.gyroZ;
-            status.current_position.yaw += status.current_speed.yaw * 0.001f;
-            status.sensor_updated++;
+            // ESP_LOGI(TAG, "Accel: %f %f %f", raw_data_.accelX, raw_data_.accelY, raw_data_.accelZ);
+            // ESP_LOGI(TAG, "Gyro: %f %f %f", raw_data_.gyroX, raw_data_.gyroY, raw_data_.gyroZ);
+            status.sensor_data.timestamp = raw_data_.timestamp;
+            status.sensor_data.sensor_updated++;
+
+            // minus bias & scale factor
+            float accelX = (raw_data_.accelX - accel_bias_x_) * accel_scale_x_;
+            float accelY = (raw_data_.accelY - accel_bias_y_) * accel_scale_y_;
+            float accelZ = (raw_data_.accelZ - accel_bias_z_) * accel_scale_z_;
+            float gyroX = (raw_data_.gyroX - gyro_bias_x_) * gyro_scale_x_;
+            float gyroY = (raw_data_.gyroY - gyro_bias_y_) * gyro_scale_y_;
+            float gyroZ = (raw_data_.gyroZ - gyro_bias_z_) * gyro_scale_z_;
+
+            // 2nd order low-pass filter
+            // Gyro: 50Hz. Accel: 10Hz
+            // status.sensor_data.acc_x = lpf2_apply(accel_lpf_x_, accelX);
+            // status.sensor_data.acc_y = lpf2_apply(accel_lpf_y_, accelY);
+            // status.sensor_data.acc_z = lpf2_apply(accel_lpf_z_, accelZ);
+            // status.sensor_data.gyro_x = lpf2_apply(gyro_lpf_x_, gyroX);
+            // status.sensor_data.gyro_y = lpf2_apply(gyro_lpf_y_, gyroY);
+            // status.sensor_data.gyro_z = lpf2_apply(gyro_lpf_z_, gyroZ);
+            status.sensor_data.acc_x = -accelX;
+            status.sensor_data.acc_y = -accelY;
+            status.sensor_data.acc_z = -accelZ;
+            status.sensor_data.gyro_x = -gyroX;
+            status.sensor_data.gyro_y = -gyroY;
+            status.sensor_data.gyro_z = -gyroZ;
+
+            // status.sensor_data.yaw += status.sensor_data.gyro_z * 180.0f / M_PI * 0.001f;
         }
         else
         {
@@ -420,48 +495,63 @@ void MotionController::update()
     if (status.mode == Mode::FPS)
     {
         // New Control Logic
-        status.target_speed.v = status.remote.x * 0.70f;
-        status.target_speed.yaw = -status.remote.y * 0.60f;
-
-        // Set the final speed for the mixer task
-        status.set_speed.v = status.target_speed.v;
-        status.set_speed.yaw = status.target_speed.yaw;
-
-        if (status.set_speed.v != 0.0f || status.set_speed.yaw != 0.0f)
+        status.target_attitude.speed.v = status.remote.x * 0.70f;
+        status.target_attitude.speed.yaw = -status.remote.y * 0.60f;
+    }
+    else if (status.mode == Mode::TPS)
+    {
+        if (abs(status.remote.yaw_pos) < 0.9f)
         {
-            // Logging can be added here if needed
+            status.target_attitude.position.yaw = -status.remote.yaw_pos * 3.14f;
         }
+        // if you wanna adjust the heading, just put your yaw stick in extream edge
+        else
+        {
+            status.target_attitude.speed.yaw = -status.remote.yaw_pos * 0.1f;
+        }
+
+        status.target_attitude.speed.x = status.remote.roll_rate;
+        status.target_attitude.speed.y = -status.remote.pitch_rate;
+        status.throttle = status.remote.throttle;
+    }
+}
+
+void OmniDriveMixer::update()
+{
+    if (status.mode == Mode::FPS)
+    {
+        omni_drive_fps(status.target_attitude.speed.v, status.target_attitude.speed.yaw);
+    }
+    else
+    {
+        omni_drive_tps(status.target_attitude.speed.x, status.target_attitude.speed.y,
+                       status.target_attitude.speed.yaw, status.current_attitude.position.yaw);
     }
 }
 
 void motion_task(void *pvParameters)
 {
+    status.mode = Mode::TPS;
+
     auto motion_controller = std::make_unique<MotionController>();
-    auto omni_controller = std::make_unique<OmniDriveController>();
+    auto omnidrive_mixer = std::make_unique<OmniDriveMixer>();
 
-    status.mode = Mode::FPS;
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    omnidrive_mixer->initialize();
 
-    // Initialize the omni drive controller
-    omni_controller->initialize();
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 10; // ms
+    xLastWakeTime = xTaskGetTickCount();
 
     while (true)
     {
         // Update motion controller (processes remote input and sets target speeds)
         motion_controller->update();
 
-        // Apply motor commands based on current mode
-        if (status.mode == Mode::FPS)
-        {
-            omni_controller->omni_drive_fps(status.set_speed.v, status.set_speed.yaw);
-        }
-        else
-        {
-            omni_controller->omni_drive_tps(status.target_speed.x, status.target_speed.y,
-                                            status.target_speed.yaw, status.target_position.yaw);
-        }
+        // run the speed or throttle to each motor
+        // change this to adjust multi type (bb8)
+        omnidrive_mixer->update();
 
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
@@ -496,7 +586,7 @@ void PWMController::set_duty(ledc_channel_t channel, float percent)
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
 }
 
-void OmniDriveController::initialize()
+void OmniDriveMixer::initialize()
 {
     pwm_controller_.initialize_channel(LEDC_CHANNEL_0, 4);
     pwm_controller_.initialize_channel(LEDC_CHANNEL_1, 5);
@@ -528,7 +618,7 @@ void OmniDriveController::initialize()
     pwm_controller_.set_duty(LEDC_CHANNEL_2, 0.0f);
 }
 
-void OmniDriveController::motor_setA(float throttle)
+void OmniDriveMixer::motor_setA(float throttle)
 {
 #if (TARGET == RED)
     pwm_controller_.set_duty(LEDC_CHANNEL_0, -throttle);
@@ -537,7 +627,7 @@ void OmniDriveController::motor_setA(float throttle)
 #endif
 }
 
-void OmniDriveController::motor_setB(float throttle)
+void OmniDriveMixer::motor_setB(float throttle)
 {
 #if (TARGET == RED)
     pwm_controller_.set_duty(LEDC_CHANNEL_1, throttle);
@@ -546,7 +636,7 @@ void OmniDriveController::motor_setB(float throttle)
 #endif
 }
 
-void OmniDriveController::motor_setC(float throttle)
+void OmniDriveMixer::motor_setC(float throttle)
 {
 #if (TARGET == RED)
     pwm_controller_.set_duty(LEDC_CHANNEL_2, -throttle);
@@ -555,7 +645,7 @@ void OmniDriveController::motor_setC(float throttle)
 #endif
 }
 
-void OmniDriveController::omni_drive_fps(float v, float rate_yaw)
+void OmniDriveMixer::omni_drive_fps(float v, float rate_yaw)
 {
     // Create body velocity vector (vx, vy, omega)
     Eigen::Vector3f body_velocities(v, 0.0f, rate_yaw);
@@ -582,7 +672,7 @@ void OmniDriveController::omni_drive_fps(float v, float rate_yaw)
     motor_setC(mC);
 }
 
-void OmniDriveController::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw)
+void OmniDriveMixer::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw)
 {
     // Create world frame velocity vector
     Eigen::Vector2f velocity_world = MatrixUtils::translation_vector(rate_x, rate_y);
@@ -622,7 +712,6 @@ void OmniDriveController::omni_drive_tps(float rate_x, float rate_y, float rate_
 void SystemMonitor::update()
 {
     // Monitor system status, battery, etc.
-    // Implementation for exception handling like pickup detection
 }
 
 void monitor_task(void *pvParameters)
@@ -638,15 +727,7 @@ void monitor_task(void *pvParameters)
 
 void DebugLogger::log_status()
 {
-    ESP_LOGI(TAG, "remote stick: %f, %f", status.remote.x, status.remote.y);
-    // ESP_LOGI(TAG, "remote btn: %d, %d, %d, %d", status.remote.button_a, status.remote.button_b, status.remote.button_c, status.remote.button_d);
-    // ESP_LOGI(TAG, "mode: %d", static_cast<int>(status.mode));
-    // ESP_LOGI(TAG, "target_speed: %f, %f", status.target_speed.v, status.target_speed.yaw);
-    // ESP_LOGI(TAG, "set_speed: v=%f, yaw=%f", status.set_speed.v, status.set_speed.yaw);
-    // ESP_LOGI(TAG, "set_speed: x=%f, y=%f, yaw=%f", status.set_speed.x, status.set_speed.y, status.set_speed.yaw);
-    // ESP_LOGI(TAG, "IMU: %f, %f, %f. yaw: %f", status.current_speed.roll, status.current_speed.pitch,
-    //          status.current_speed.yaw, status.current_position.yaw);
-    // ESP_LOGI(TAG, "sensor update counts: %d", status.sensor_updated);
+    ESP_LOGI("Sensor", "Gyro: %f, %f, %f. Accel: %f, %f, %f.", status.sensor_data.gyro_x, status.sensor_data.gyro_y, status.sensor_data.gyro_z, status.sensor_data.acc_x, status.sensor_data.acc_y, status.sensor_data.acc_z);
 }
 
 void DebugLogger::test_eigen_implementation()
@@ -676,7 +757,7 @@ void debug_task(void *pvParameters)
 {
     auto logger = std::make_unique<DebugLogger>();
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 1000; // ms
+    const TickType_t xFrequency = 200; // ms
     xLastWakeTime = xTaskGetTickCount();
 
     // Run Eigen test once at startup
@@ -692,7 +773,7 @@ void debug_task(void *pvParameters)
 #ifdef USE_CRSF
 void radio_task(void *pvParameters)
 {
-    ESP_LOGI(TAG, "Starting radio task");
+    ESP_LOGI(TAG, "########### Starting radio task ###########");
 
     // CRSF configuration
     crsf_config_t crsf_config = {
@@ -702,7 +783,6 @@ void radio_task(void *pvParameters)
 
     // Initialize CRSF
     CRSF_init(&crsf_config);
-    ESP_LOGI(TAG, "CRSF initialized");
 
     // Channel data structure
     crsf_channels_t channels = {0};
@@ -711,7 +791,7 @@ void radio_task(void *pvParameters)
     crsf_battery_t battery = {0};
 
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 50; // 20Hz update rate
+    const TickType_t xFrequency = 10; // ms
     xLastWakeTime = xTaskGetTickCount();
 
     while (true)
@@ -719,18 +799,25 @@ void radio_task(void *pvParameters)
         // Receive channel data
         CRSF_receive_channels(&channels);
 
+        // constrain channel values to [174, 1811]
+        const float min_channel = 174.0f, mid_channel = 992.0f, max_channel = 1811.0f;
+        float ch1_constrained = std::min(std::max(static_cast<float>(channels.ch1), min_channel), max_channel);
+        float ch2_constrained = std::min(std::max(static_cast<float>(channels.ch2), min_channel), max_channel);
+        float ch3_constrained = std::min(std::max(static_cast<float>(channels.ch3), min_channel), max_channel);
+        float ch4_constrained = std::min(std::max(static_cast<float>(channels.ch4), min_channel), max_channel);
+
         // Map CRSF channels to robot control
         // Assuming standard mapping:
         // ch1: roll (left/right)
         // ch2: pitch (forward/backward)
-        // ch3: throttle (up/down)
+        // ch3: throttle (power)
         // ch4: yaw (rotation)
 
-        // Convert 11-bit values (0-2047) to normalized values (-1.0 to 1.0)
-        float roll = (channels.ch1 - 1024.0f) / 1024.0f;
-        float pitch = (channels.ch2 - 1024.0f) / 1024.0f;
-        float throttle = (channels.ch3 - 1024.0f) / 1024.0f;
-        float yaw = (channels.ch4 - 1024.0f) / 1024.0f;
+        // Convert to normalized values (-1.0 to 1.0)
+        float roll = (ch1_constrained - mid_channel) / (max_channel - mid_channel);
+        float pitch = (ch2_constrained - mid_channel) / (max_channel - mid_channel);
+        float throttle = (ch3_constrained - min_channel) / (max_channel - min_channel);
+        float yaw = (ch4_constrained - mid_channel) / (max_channel - mid_channel);
 
         // Apply deadzone
         const float deadzone = 0.1f;
@@ -744,24 +831,16 @@ void radio_task(void *pvParameters)
             yaw = 0.0f;
 
         // Update robot status with remote control data
-        status.remote.x = pitch;   // Forward/backward
-        status.remote.y = roll;    // Left/right
-        status.remote.theta = yaw; // Rotation
-
-        // Log channel values periodically
-        static int log_counter = 0;
-        if (++log_counter >= 100)
-        { // Log every 5 seconds at 20Hz
-            ESP_LOGI(TAG, "CRSF Channels - Roll: %.3f, Pitch: %.3f, Throttle: %.3f, Yaw: %.3f",
-                     roll, pitch, throttle, yaw);
-            log_counter = 0;
-        }
+        status.remote.roll_rate = roll;
+        status.remote.pitch_rate = pitch;
+        status.remote.throttle = throttle;
+        status.remote.yaw_pos = yaw;
 
         // Send battery telemetry back to transmitter
-        battery.voltage = 120;   // 12.0V * 10
+        battery.voltage = 58;    // 12.0V * 10
         battery.current = 50;    // 5.0A * 10
         battery.capacity = 1000; // 1000mAh
-        battery.remaining = 80;  // 80%
+        battery.remaining = 30;  // 80%
 
         CRSF_send_battery_data(CRSF_DEST_FC, &battery);
 
@@ -772,11 +851,11 @@ void radio_task(void *pvParameters)
 
 extern "C" void app_main(void)
 {
-    xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
-    xTaskCreate(radio_task, "radio_task", 1 * 4096, nullptr, 1, nullptr);
+    // xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
+    // xTaskCreate(radio_task, "radio_task", 1 * 4096, nullptr, 1, nullptr);
     xTaskCreate(sensor_task, "sensor_task", 2 * 4096, nullptr, 1, nullptr);
-    xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
-    xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
-    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
+    // xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
+    // xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
+    // xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
     xTaskCreate(debug_task, "debug_task", 1 * 4096, nullptr, 1, nullptr);
 }

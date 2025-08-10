@@ -101,13 +101,27 @@ enum class Mode
 // Position data structure
 struct Position
 {
-    float x = 0.0f, y = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
+    float x = 0.0f, y = 0.0f, z = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
 };
 
 // Speed data structure
 struct Speed
 {
-    float x = 0.0f, y = 0.0f, v = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
+    float v = 0.0f; // fps
+    float x = 0.0f, y = 0.0f, z = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
+};
+
+struct Accelleration
+{
+    float v = 0.0f; // fps
+    float x = 0.0f, y = 0.0f, z = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
+};
+
+struct Attitude
+{
+    Position position;
+    Speed speed;
+    Accelleration accel;
 };
 
 // Remote control data structure
@@ -115,26 +129,46 @@ struct RemoteControl
 {
     float x = 0.0f, y = 0.0f, theta = 0.0f;
     bool button_a = false, button_b = false, button_c = false, button_d = false;
+    float roll_rate, pitch_rate, throttle, yaw_pos;
+};
+
+// Sensor data structure (processed from raw)
+struct SensorData
+{
+    time_t timestamp = 0;
+    float acc_x = 0.0f, acc_y = 0.0f, acc_z = 0.0f;
+    float gyro_x = 0.0f, gyro_y = 0.0f, gyro_z = 0.0f;
+    uint32_t sensor_updated = 0;
+    float roll = 0.0f, pitch = 0.0f, yaw = 0.0f;  // Euler angles in radians
 };
 
 // Main status class
 class RobotStatus
 {
 public:
-    Position target_position;
-    Position current_position;
-    Speed target_speed;
-    Speed current_speed;
-    Speed set_speed;
-    RemoteControl remote;
     Mode mode = Mode::FPS;
-    int sensor_updated = 0;
+
+    RemoteControl remote;
+    float throttle = 0.0f;
+
+    SensorData sensor_data;
+    Attitude current_attitude;
+    Attitude target_attitude;   // mixer will pick members as needed
 };
 
 // Global status instance
 extern RobotStatus status;
 
 #ifdef USE_IMU
+// Second-order low-pass filter structure
+struct LPF2State
+{
+    float x1 = 0.0f, x2 = 0.0f;  // Input history
+    float y1 = 0.0f, y2 = 0.0f;  // Output history
+    float a1 = 0.0f, a2 = 0.0f;  // Denominator coefficients
+    float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f;  // Numerator coefficients
+};
+
 class IMUManager
 {
 private:
@@ -142,13 +176,29 @@ private:
     static constexpr gpio_num_t I2C_MASTER_SCL_IO = GPIO_NUM_12;
     static constexpr int I2C_MASTER_NUM = I2C_NUM_0;
     static constexpr int I2C_MASTER_FREQ_HZ = 400000;
+    static constexpr float SAMPLING_RATE = 1000.0f; // Hz, based on ODR setting
 
     i2c_master_bus_handle_t bus_handle_;
     qmi8658_dev_t dev_;
-    qmi8658_data_t data_;
+    qmi8658_data_t raw_data_;
     bool initialized_ = false;
+    
+    float accel_bias_x_ = 0.0f, accel_bias_y_ = 0.0f, accel_bias_z_ = 0.0f;
+    float gyro_bias_x_ = -0.002182f, gyro_bias_y_ = 0.047997f, gyro_bias_z_ = -0.019090f;
+
+    float accel_scale_x_ = 1.0f, accel_scale_y_ = 1.0f, accel_scale_z_ = 1.0f;
+    float gyro_scale_x_ = 1.0f, gyro_scale_y_ = 1.0f, gyro_scale_z_ = 1.0f;
+
+    // Low-pass filter states for each sensor axis
+    LPF2State accel_lpf_x_, accel_lpf_y_, accel_lpf_z_;
+    LPF2State gyro_lpf_x_, gyro_lpf_y_, gyro_lpf_z_;
+
+    // Private helper functions
+    void lpf2_init(LPF2State& filter, float cutoff_freq, float sampling_rate);
+    float lpf2_apply(LPF2State& filter, float input);
 
 public:
+    IMUManager();
     esp_err_t initialize();
     void update();
     bool is_initialized() const { return initialized_; }
@@ -213,7 +263,7 @@ public:
     void set_duty(ledc_channel_t channel, float percent);
 };
 
-class OmniDriveController
+class OmniDriveMixer
 {
 private:
     PWMController pwm_controller_;
@@ -232,6 +282,7 @@ public:
     void motor_setC(float throttle);
     void omni_drive_fps(float v, float rate_yaw);
     void omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw);
+    void update();
 };
 #endif
 

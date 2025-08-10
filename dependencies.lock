@@ -1,4 +1,50 @@
 dependencies:
+  espp/filters:
+    component_hash: 6e370e44ce96f3b76a735e40d2ea7678d266e9953bd5b2ff106ad0b813b8e9e6
+    dependencies:
+    - name: espp/format
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=1.0'
+    - name: espp/math
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=1.0'
+    - name: espressif/esp-dsp
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=1.6.4'
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.17
+  espp/format:
+    component_hash: fe1248e361db8e2ac39048ed7e3406087c8bbc4dc952a6020bc76080bc8a226e
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.17
+  espp/math:
+    component_hash: d9caec0be95c24b53eb3ad971362517aed3b7456ae8b4596064d65b73743b3ae
+    dependencies:
+    - name: espp/format
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=1.0'
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.17
   espressif/eigen:
     component_hash: 64a82d75ea6b7cb9240398ce0b6616e905d71b83a734b2cf9cb58ad09dd4f5ea
     dependencies:
@@ -9,6 +55,16 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 3.4.0~2
+  espressif/esp-dsp:
+    component_hash: 42dce32d46ac93dc11f60d368e29a830e9661c7345d794b8a45c343479cae636
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.7.0
   espressif/led_strip:
     component_hash: 223998f10cae6d81f2ad2dd3c1103c2221be298c708e37917482b0153f3ec64e
     dependencies:
@@ -34,10 +90,11 @@ dependencies:
       type: service
     version: 1.0.1
 direct_dependencies:
+- espp/filters
 - espressif/eigen
 - espressif/led_strip
 - idf
 - waveshare/qmi8658
-manifest_hash: f5a1976c5eac9da160130da9ff3e3f66c0c639201cd9a8937b1781061bf0d657
+manifest_hash: 7a70cec0211c1fcc5294e81288b0f64e1e54a4c253079ea39ba1fc89f9bc25be
 target: esp32s3
 version: 2.0.0
