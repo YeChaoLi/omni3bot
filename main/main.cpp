@@ -237,7 +237,7 @@ void IMUManager::update()
             status.current_attitude.position.pitch = pitch;
             status.current_attitude.position.yaw = yaw;
 
-            ESP_LOGI(TAG, "Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f°", status.current_attitude.position.roll * 180 / M_PI, status.current_attitude.position.pitch * 180 / M_PI, status.current_attitude.position.yaw * 180 / M_PI);
+            // ESP_LOGI(TAG, "Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f°", status.current_attitude.position.roll * 180 / M_PI, status.current_attitude.position.pitch * 180 / M_PI, status.current_attitude.position.yaw * 180 / M_PI);
         }
         else
         {
@@ -566,6 +566,7 @@ void MotionController::update()
     {
         if (abs(status.remote.yaw_pos) < 0.9f)
         {
+            status.target_attitude.speed.yaw = (-status.remote.yaw_pos)>0.0f ? 1.0f : -1.0f;
             status.target_attitude.position.yaw = -status.remote.yaw_pos * 3.14f;
         }
         // if you wanna adjust the heading, just put your yaw stick in extream edge
@@ -575,8 +576,11 @@ void MotionController::update()
         }
 
         status.target_attitude.speed.x = status.remote.roll_rate;
-        status.target_attitude.speed.y = -status.remote.pitch_rate;
+        status.target_attitude.speed.y = status.remote.pitch_rate;
         status.throttle = status.remote.throttle;
+
+        // ESP_LOGI(TAG,"Remote: Roll: %f, Pitch: %f, Yaw: %f, Throttle: %f", status.remote.roll_rate, status.remote.pitch_rate, status.remote.yaw_pos, status.remote.throttle);
+        // ESP_LOGI(TAG, "target_attitude.speed.x: %f, target_attitude.speed.y: %f, status.target_attitude.position.yaw : %f, target_attitude.speed.yaw: %f", status.target_attitude.speed.x, status.target_attitude.speed.y, status.target_attitude.position.yaw, status.target_attitude.speed.yaw);
     }
 }
 
@@ -680,6 +684,7 @@ void OmniDriveMixer::initialize()
     pwm_controller_.set_duty(LEDC_CHANNEL_0, 0.0f);
     pwm_controller_.set_duty(LEDC_CHANNEL_1, 0.0f);
     pwm_controller_.set_duty(LEDC_CHANNEL_2, 0.0f);
+    vTaskDelay(pdMS_TO_TICKS(200));
 }
 
 void OmniDriveMixer::motor_setA(float throttle)
@@ -921,11 +926,11 @@ void radio_task(void *pvParameters)
 
 extern "C" void app_main(void)
 {
-    // xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
-    // xTaskCreate(radio_task, "radio_task", 1 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(radio_task, "radio_task", 1 * 4096, nullptr, 1, nullptr);
     xTaskCreate(sensor_task, "sensor_task", 2 * 4096, nullptr, 1, nullptr);
-    // xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
-    // xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
-    // xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
+    xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
+    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
     xTaskCreate(debug_task, "debug_task", 1 * 4096, nullptr, 1, nullptr);
 }
