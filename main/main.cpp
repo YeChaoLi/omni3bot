@@ -928,9 +928,12 @@ extern "C" void app_main(void)
 {
     xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
     xTaskCreate(radio_task, "radio_task", 1 * 4096, nullptr, 1, nullptr);
-    xTaskCreate(sensor_task, "sensor_task", 2 * 4096, nullptr, 1, nullptr);
     xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
+    
+    // robot
+    xTaskCreate(sensor_task, "sensor_task", 2 * 4096, nullptr, 1, nullptr);
     xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
+
     xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
     xTaskCreate(debug_task, "debug_task", 1 * 4096, nullptr, 1, nullptr);
 }
