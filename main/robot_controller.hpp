@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <Eigen/Dense>
 #include "madgwick_filter.hpp"  // Include Madgwick filter
+#include "pid_ctrl.h"           // Include ESP-IDF PID controller
 
 // Matrix transformation utilities for 2D coordinate manipulation
 // Using Eigen library for efficient matrix operations instead of manual sin/cos calculations
@@ -65,9 +66,10 @@ namespace MatrixUtils
     {
         Eigen::Matrix3f H;
         // Each row represents the contribution of (vx, vy, omega) to each wheel
-        H.row(0) = Eigen::Vector3f(-sinf(beta_a), cosf(beta_a), -1.0f); // Wheel A
-        H.row(1) = Eigen::Vector3f(-sinf(beta_b), cosf(beta_b), -1.0f); // Wheel B
-        H.row(2) = Eigen::Vector3f(-sinf(beta_c), cosf(beta_c), -1.0f); // Wheel C
+        // Swapped X and Y components so rate_x > 0 moves right, rate_y > 0 moves forward
+        H.row(0) = Eigen::Vector3f(cosf(beta_a), -sinf(beta_a), -1.0f); // Wheel A
+        H.row(1) = Eigen::Vector3f(cosf(beta_b), -sinf(beta_b), -1.0f); // Wheel B
+        H.row(2) = Eigen::Vector3f(cosf(beta_c), -sinf(beta_c), -1.0f); // Wheel C
         return H;
     }
 
@@ -155,6 +157,7 @@ public:
     SensorData sensor_data;
     Attitude current_attitude;
     Attitude target_attitude;   // mixer will pick members as needed
+    bool imu_ready = false;
 };
 
 // Global status instance
@@ -189,7 +192,7 @@ private:
 
     float accel_scale_x_ = 1.0f, accel_scale_y_ = 1.0f, accel_scale_z_ = 1.0f;
     // float gyro_scale_x_ = 1.0f, gyro_scale_y_ = 1.0f, gyro_scale_z_ = 1.0f;
-    float gyro_scale_x_ = 0.5f, gyro_scale_y_ = 0.5f, gyro_scale_z_ = 0.5f;
+    float gyro_scale_x_ = 0.501945f, gyro_scale_y_ = 0.501945f, gyro_scale_z_ = 0.501945f;
 
     // Low-pass filter states for each sensor axis
     LPF2State accel_lpf_x_, accel_lpf_y_, accel_lpf_z_;
@@ -208,6 +211,7 @@ private:
 
 public:
     IMUManager();
+    void calibrate();
     esp_err_t initialize();
     void update();
     bool is_initialized() const { return initialized_; }
@@ -256,10 +260,32 @@ public:
 };
 #endif
 
+// PID Controller is now defined in pid_controller.hpp
+
 class MotionController
 {
+private:
+    pid_ctrl_block_handle_t yaw_pid_controller_;
+    bool pid_initialized_;
+
 public:
+    MotionController() : yaw_pid_controller_(nullptr), pid_initialized_(false) {
+        // PID controller will be initialized in initialize() method
+    }
+
+    ~MotionController() {
+        if (yaw_pid_controller_) {
+            pid_del_control_block(yaw_pid_controller_);
+        }
+    }
+
+    esp_err_t initialize();
     void update();
+    
+    void set_yaw_pid_gains(float kp, float ki, float kd);
+    
+    // Get access to PID controller for external use
+    pid_ctrl_block_handle_t get_yaw_pid_controller() const { return yaw_pid_controller_; }
 };
 
 #ifdef USE_OMNI3
@@ -280,9 +306,9 @@ class OmniDriveMixer
 private:
     PWMController pwm_controller_;
     static constexpr float L = 50.0f; // mm
-    static constexpr float BETA_A = -M_PI / 3.0f;
-    static constexpr float BETA_B = M_PI / 3.0f;
-    static constexpr float BETA_C = M_PI;
+    static constexpr float BETA_A = -M_PI / 3.0f;  // -60° (left front)
+    static constexpr float BETA_B = -M_PI;          // -180° (backward)
+    static constexpr float BETA_C = M_PI / 3.0f;    // +60° (right front)
 
     // Pre-computed wheel kinematics matrix for efficiency
     Eigen::Matrix3f wheel_kinematics_matrix_;

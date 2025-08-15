@@ -170,6 +170,43 @@ void IMUManager::get_attitude(float &roll, float &pitch, float &yaw) const
     yaw *= M_PI / 180.0f;
 }
 
+void IMUManager::calibrate()
+{
+    ESP_LOGI(TAG, "Starting Y-axis gyroscope calibration...");
+    ESP_LOGI(TAG, "Please keep the robot stationary for 1 seconds");
+
+    const int CALIBRATION_SAMPLES = 1'000;
+    double gyro_x_sum = 0.0f, gyro_y_sum = 0.0f, gyro_z_sum = 0.0f;
+    int valid_samples = 0;
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 1; // ms
+    xLastWakeTime = xTaskGetTickCount();
+
+    for (int i = 0; i < CALIBRATION_SAMPLES; i++)
+    {
+        bool ready;
+        esp_err_t ret = qmi8658_is_data_ready(&dev_, &ready);
+        if (ret == ESP_OK && ready)
+        {
+            ret = qmi8658_read_sensor_data(&dev_, &raw_data_);
+            if (ret == ESP_OK)
+            {
+                gyro_x_sum += raw_data_.gyroX;
+                gyro_y_sum += raw_data_.gyroY;
+                gyro_z_sum += raw_data_.gyroZ;
+                valid_samples++;
+            }
+        }
+
+        // Small delay between samples
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+
+    gyro_bias_x_ = gyro_x_sum / (float)valid_samples;
+    gyro_bias_y_ = gyro_y_sum / (float)valid_samples;
+    gyro_bias_z_ = gyro_z_sum / (float)valid_samples;
+}
+
 void IMUManager::update()
 {
     if (!initialized_)
@@ -210,9 +247,6 @@ void IMUManager::update()
             status.sensor_data.gyro_y = gyroY;
             status.sensor_data.gyro_z = -gyroZ;
 
-            // status.sensor_data.yaw += status.sensor_data.gyro_z * 0.01f;
-            // ESP_LOGI(TAG, "yaw: %f", status.sensor_data.yaw);
-
             // ESP_LOGI(TAG, "accel: %f %f %f; gyro: %f %f %f", status.sensor_data.acc_x, status.sensor_data.acc_y, status.sensor_data.acc_z, status.sensor_data.gyro_x, status.sensor_data.gyro_y, status.sensor_data.gyro_z);
 
             // madgwick use right-handed coordinate
@@ -250,12 +284,16 @@ void sensor_task(void *pvParameters)
 {
     auto imu = std::make_unique<IMUManager>();
     esp_err_t ret = imu->initialize();
+
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to initialize IMU");
         vTaskDelete(nullptr);
         return;
     }
+
+    imu->calibrate();
+    status.imu_ready = true;
 
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 1; // ms
@@ -554,6 +592,68 @@ void ble_task(void *pvParameters)
 
 #endif
 
+esp_err_t MotionController::initialize()
+{
+    // Configure PID parameters for yaw control
+    pid_ctrl_parameter_t pid_param = {
+        .kp = 2.5f,                         // Proportional gain
+        .ki = 0.3f,                         // Integral gain
+        .kd = 15.0f,                        // Derivative gain
+        .max_output = 0.8f,                 // Maximum output limit
+        .min_output = -0.8f,                // Minimum output limit
+        .max_integral = 0.4f,               // Anti-windup limit (half of max_output)
+        .min_integral = -0.4f,              // Anti-windup limit
+        .cal_type = PID_CAL_TYPE_POSITIONAL // Positional PID control
+    };
+
+    pid_ctrl_config_t pid_config = {
+        .init_param = pid_param};
+
+    esp_err_t ret = pid_new_control_block(&pid_config, &yaw_pid_controller_);
+    if (ret == ESP_OK)
+    {
+        pid_initialized_ = true;
+        ESP_LOGI(TAG, "Yaw PID controller initialized successfully");
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to initialize yaw PID controller: %s", esp_err_to_name(ret));
+    }
+
+    pid_reset_ctrl_block(yaw_pid_controller_);
+
+    return ret;
+}
+
+void MotionController::set_yaw_pid_gains(float kp, float ki, float kd)
+{
+    if (!pid_initialized_ || !yaw_pid_controller_)
+    {
+        ESP_LOGW(TAG, "Cannot set PID gains: controller not initialized");
+        return;
+    }
+
+    pid_ctrl_parameter_t pid_param = {
+        .kp = kp,
+        .ki = ki,
+        .kd = kd,
+        .max_output = 0.8f,
+        .min_output = -0.8f,
+        .max_integral = 0.4f,
+        .min_integral = -0.4f,
+        .cal_type = PID_CAL_TYPE_POSITIONAL};
+
+    esp_err_t ret = pid_update_parameters(yaw_pid_controller_, &pid_param);
+    if (ret == ESP_OK)
+    {
+        ESP_LOGI(TAG, "PID gains updated: Kp=%.2f, Ki=%.2f, Kd=%.2f", kp, ki, kd);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to update PID gains: %s", esp_err_to_name(ret));
+    }
+}
+
 void MotionController::update()
 {
     if (status.mode == Mode::FPS)
@@ -564,19 +664,73 @@ void MotionController::update()
     }
     else if (status.mode == Mode::TPS)
     {
-        if (abs(status.remote.yaw_pos) < 0.9f)
+        if (abs(status.remote.yaw_pos) < 0.98f)
         {
-            status.target_attitude.speed.yaw = (-status.remote.yaw_pos)>0.0f ? 1.0f : -1.0f;
             status.target_attitude.position.yaw = -status.remote.yaw_pos * 3.14f;
         }
         // if you wanna adjust the heading, just put your yaw stick in extream edge
         else
         {
-            status.target_attitude.speed.yaw = -status.remote.yaw_pos * 0.1f;
+            status.target_attitude.position.yaw += (-status.remote.yaw_pos);
         }
 
         status.target_attitude.speed.x = status.remote.roll_rate;
         status.target_attitude.speed.y = status.remote.pitch_rate;
+
+        // PID闭环控制：计算目标yaw和当前yaw的误差，输出yaw角速度
+        static uint32_t last_update_time = 0;
+        uint32_t current_time = esp_timer_get_time() / 1000;    // Convert to milliseconds
+        float dt = (current_time - last_update_time) / 1000.0f; // Convert to seconds
+
+        // Ensure dt is reasonable (avoid large jumps)
+        if (dt > 0.1f)
+            dt = 0.01f; // Cap at 100ms, default to 10ms
+        if (dt < 0.001f)
+            dt = 0.01f; // Minimum 1ms
+
+        // 计算yaw误差并处理角度跨越±π边界的情况
+        float yaw_error = status.target_attitude.position.yaw - status.current_attitude.position.yaw;
+        if (yaw_error > M_PI)
+        {
+            yaw_error -= 2.0f * M_PI;
+        }
+        else if (yaw_error < -M_PI)
+        {
+            yaw_error += 2.0f * M_PI;
+        }
+
+        // 使用ESP-IDF PID控制器计算yaw角速度输出
+        if (pid_initialized_ && yaw_pid_controller_)
+        {
+            // 使用PID控制器计算输出
+            float pid_output;
+            esp_err_t ret = pid_compute(yaw_pid_controller_, yaw_error, &pid_output);
+            if (ret == ESP_OK)
+            {
+                status.target_attitude.speed.yaw = pid_output;
+            }
+            else
+            {
+                ESP_LOGW(TAG, "PID compute failed: %s", esp_err_to_name(ret));
+                // Fallback to simple proportional control
+                status.target_attitude.speed.yaw = 2.0f * yaw_error;
+            }
+        }
+        else
+        {
+            // Fallback to simple proportional control if PID not initialized
+            status.target_attitude.speed.yaw = 2.0f * yaw_error;
+        }
+
+        // Debug logging (uncomment if needed for tuning)
+        // ESP_LOGI(TAG, "Yaw Control - Target: %.3f, Current: %.3f, Error: %.3f, Output: %.3f",
+        //          status.target_attitude.position.yaw,
+        //          status.current_attitude.position.yaw,
+        //          yaw_error,
+        //          status.target_attitude.speed.yaw);
+
+        last_update_time = current_time;
+
         status.throttle = status.remote.throttle;
 
         // ESP_LOGI(TAG,"Remote: Roll: %f, Pitch: %f, Yaw: %f, Throttle: %f", status.remote.roll_rate, status.remote.pitch_rate, status.remote.yaw_pos, status.remote.throttle);
@@ -599,10 +753,24 @@ void OmniDriveMixer::update()
 
 void motion_task(void *pvParameters)
 {
+    while (!status.imu_ready)
+    {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
     status.mode = Mode::TPS;
 
     auto motion_controller = std::make_unique<MotionController>();
     auto omnidrive_mixer = std::make_unique<OmniDriveMixer>();
+
+    // Initialize PID controller
+    esp_err_t ret = motion_controller->initialize();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize motion controller PID");
+        vTaskDelete(nullptr);
+        return;
+    }
 
     omnidrive_mixer->initialize();
 
@@ -671,20 +839,33 @@ void OmniDriveMixer::initialize()
     vTaskDelay(pdMS_TO_TICKS(500));
 
     // Test sequence
-    pwm_controller_.set_duty(LEDC_CHANNEL_0, 0.3f);
-    pwm_controller_.set_duty(LEDC_CHANNEL_1, 0.3f);
-    pwm_controller_.set_duty(LEDC_CHANNEL_2, 0.3f);
-    vTaskDelay(pdMS_TO_TICKS(200));
+    // pwm_controller_.set_duty(LEDC_CHANNEL_0, 0.3f);
+    // pwm_controller_.set_duty(LEDC_CHANNEL_1, 0.3f);
+    // pwm_controller_.set_duty(LEDC_CHANNEL_2, 0.3f);
+    // vTaskDelay(pdMS_TO_TICKS(200));
 
-    pwm_controller_.set_duty(LEDC_CHANNEL_0, -0.3f);
-    pwm_controller_.set_duty(LEDC_CHANNEL_1, -0.3f);
-    pwm_controller_.set_duty(LEDC_CHANNEL_2, -0.3f);
-    vTaskDelay(pdMS_TO_TICKS(200));
+    // pwm_controller_.set_duty(LEDC_CHANNEL_0, -0.3f);
+    // pwm_controller_.set_duty(LEDC_CHANNEL_1, -0.3f);
+    // pwm_controller_.set_duty(LEDC_CHANNEL_2, -0.3f);
+    // vTaskDelay(pdMS_TO_TICKS(200));
 
-    pwm_controller_.set_duty(LEDC_CHANNEL_0, 0.0f);
-    pwm_controller_.set_duty(LEDC_CHANNEL_1, 0.0f);
-    pwm_controller_.set_duty(LEDC_CHANNEL_2, 0.0f);
-    vTaskDelay(pdMS_TO_TICKS(200));
+    // pwm_controller_.set_duty(LEDC_CHANNEL_0, 0.0f);
+    // pwm_controller_.set_duty(LEDC_CHANNEL_1, 0.0f);
+    // pwm_controller_.set_duty(LEDC_CHANNEL_2, 0.0f);
+    // vTaskDelay(pdMS_TO_TICKS(200));
+
+    // Test one by one
+    // vTaskDelay(pdMS_TO_TICKS(1000));
+    // motor_setA(1);
+    // vTaskDelay(pdMS_TO_TICKS(1000));
+    // motor_setB(1);
+    // vTaskDelay(pdMS_TO_TICKS(1000));
+    // motor_setC(1);
+    // vTaskDelay(pdMS_TO_TICKS(1000));
+    // motor_setA(0);
+    // motor_setB(0);
+    // motor_setC(0);
+    // vTaskDelay(pdMS_TO_TICKS(200000));
 }
 
 void OmniDriveMixer::motor_setA(float throttle)
@@ -701,7 +882,7 @@ void OmniDriveMixer::motor_setB(float throttle)
 #if (TARGET == RED)
     pwm_controller_.set_duty(LEDC_CHANNEL_1, throttle);
 #else
-    pwm_controller_.set_duty(LEDC_CHANNEL_2, -throttle);
+    pwm_controller_.set_duty(LEDC_CHANNEL_1, throttle);
 #endif
 }
 
@@ -710,7 +891,7 @@ void OmniDriveMixer::motor_setC(float throttle)
 #if (TARGET == RED)
     pwm_controller_.set_duty(LEDC_CHANNEL_2, -throttle);
 #else
-    pwm_controller_.set_duty(LEDC_CHANNEL_1, throttle);
+    pwm_controller_.set_duty(LEDC_CHANNEL_2, -throttle);
 #endif
 }
 
@@ -743,6 +924,8 @@ void OmniDriveMixer::omni_drive_fps(float v, float rate_yaw)
 
 void OmniDriveMixer::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, float yaw)
 {
+    ESP_LOGI("omni_drive_tps", "rate_x: %f, rate_y: %f, rate_yaw: %f, yaw: %f", rate_x, rate_y, rate_yaw, yaw);
+
     // Create world frame velocity vector
     Eigen::Vector2f velocity_world = MatrixUtils::translation_vector(rate_x, rate_y);
 
@@ -760,6 +943,8 @@ void OmniDriveMixer::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, 
     float mB = wheel_speeds(1);
     float mC = wheel_speeds(2);
 
+    // ESP_LOGI("wheel_speeds", "mA: %f, mB: %f, mC: %f", wheel_speeds(0), wheel_speeds(1), wheel_speeds(2));
+
     // Normalize if any |m| > 1
     float maxm = std::max(std::abs(mA), std::max(std::abs(mB), std::abs(mC)));
     if (maxm > 1.0f)
@@ -772,6 +957,8 @@ void OmniDriveMixer::omni_drive_tps(float rate_x, float rate_y, float rate_yaw, 
     motor_setA(mA);
     motor_setB(mB);
     motor_setC(mC);
+
+    // ESP_LOGI("Motor", "mA: %f, mB: %f, mC: %f", mA, mB, mC);
 }
 
 #else
@@ -850,6 +1037,12 @@ void radio_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "########### Starting radio task ###########");
 
+    status.remote.roll_rate = 0;
+    status.remote.pitch_rate = 0;
+    status.remote.throttle = 0;
+    status.remote.yaw_pos = 0;
+    vTaskDelay(pdMS_TO_TICKS(3000));
+
     // CRSF configuration
     crsf_config_t crsf_config = {
         .uart_num = CONFIG_CRSF_UART_NUM,
@@ -926,14 +1119,14 @@ void radio_task(void *pvParameters)
 
 extern "C" void app_main(void)
 {
-    xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
+    // xTaskCreate(ble_task, "ble_task", 2 * 4096, nullptr, 1, nullptr);
     xTaskCreate(radio_task, "radio_task", 1 * 4096, nullptr, 1, nullptr);
-    xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
-    
-    // robot
+    // xTaskCreate(pixel_task, "pixel_task", 2 * 4096, nullptr, 3, nullptr);
+
+    // // robot
     xTaskCreate(sensor_task, "sensor_task", 2 * 4096, nullptr, 1, nullptr);
     xTaskCreate(motion_task, "motion_task", 2 * 4096, nullptr, 1, nullptr);
 
-    xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
-    xTaskCreate(debug_task, "debug_task", 1 * 4096, nullptr, 1, nullptr);
+    // xTaskCreate(monitor_task, "monitor_task", 1 * 4096, nullptr, 1, nullptr);
+    // xTaskCreate(debug_task, "debug_task", 1 * 4096, nullptr, 1, nullptr);
 }

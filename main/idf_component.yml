@@ -18,3 +18,4 @@ dependencies:
   waveshare/qmi8658: ^1.0.1
   eigen: ^3.4.0
   espp/filters: ^1.0.17
+  espressif/pid_ctrl: ^0.2.0
