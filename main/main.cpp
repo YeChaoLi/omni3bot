@@ -5,7 +5,7 @@
 #include <esp_system.h>
 #include <esp_log.h>
 #include <esp_err.h>
-#include <esp_timer.h> // For esp_timer_get_time()
+#include <esp_timer.h> 
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
